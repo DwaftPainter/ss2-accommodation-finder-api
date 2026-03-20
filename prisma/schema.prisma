@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  password  String
+
+  listings      Listing[]
+  reviews       Review[]
+  savedListings SavedListing[]
+}
+
+model Listing {
+  id             String   @id @default(cuid())
+  title          String
+  address        String
+  lat            Float
+  lng            Float
+  price          Int // monthly rent in VND
+  area           Float // square meters
+  electricityFee Int? // VND per kWh
+  waterFee       Int? // VND per m³
+  description    String?
+  utilities      String[] // e.g. ["air_conditioning", "balcony", "wifi", "parking", "washing_machine"]
+  images         String[] // URLs
+  contactName    String?
+  contactPhone   String?
+  ownerId        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  owner        User           @relation(fields: [ownerId], references: [id])
+  reviews      Review[]
+  savedByUsers SavedListing[]
+
+  @@index([lat, lng])
+  @@index([price])
+  @@index([area])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int // 1-5
+  comment   String?
+  listingId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([listingId, userId])
+}
+
+model SavedListing {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+}

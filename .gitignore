@@ -398,3 +398,14 @@ Temporary Items
 dist
 .webpack
 .serverless/**/*.zip
+
+/generated/prisma
+
+# Environment variables file(s)
+.env
+# Optional: also ignore local-only environment files
+.env.local
+.env.*.local
+
+# Distribution/build directory
+dist/
