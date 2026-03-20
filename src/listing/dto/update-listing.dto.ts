@@ -8,21 +8,27 @@ import {
 
 export class UpdateListingDto {
   @IsString()
+  @IsOptional()
   title: string;
 
   @IsString()
+  @IsOptional()
   address: string;
 
   @IsNumber()
+  @IsOptional()
   lat: number;
 
   @IsNumber()
+  @IsOptional()
   lng: number;
 
   @IsNumber()
+  @IsOptional()
   price: number;
 
   @IsNumber()
+  @IsOptional()
   area: number;
 
   @IsOptional()
@@ -38,9 +44,11 @@ export class UpdateListingDto {
   description?: string;
 
   @IsArray()
+  @IsOptional()
   utilities: string[];
 
   @IsArray()
+  @IsOptional()
   images: string[];
 
   @IsOptional()
