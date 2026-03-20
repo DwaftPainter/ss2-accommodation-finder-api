@@ -11,7 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ListingsService } from './listings.service';
-import { JwtAuthGuard } from 'src/auth/jwt.guard';
+import { JwtAuthGuard } from 'src/modules/auth/jwt.guard';
 
 @Controller('listings')
 export class ListingsController {
