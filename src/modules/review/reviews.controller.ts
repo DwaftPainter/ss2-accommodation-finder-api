@@ -9,7 +9,7 @@ import {
   Patch,
   Delete,
 } from '@nestjs/common';
-import { JwtAuthGuard } from 'src/auth/jwt.guard';
+import { JwtAuthGuard } from 'src/modules/auth/jwt.guard';
 import { ReviewsService } from './reviews.service';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { CreateReviewDto } from './dto/create-review.dto';

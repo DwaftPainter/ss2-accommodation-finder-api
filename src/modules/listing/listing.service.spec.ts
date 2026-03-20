@@ -1,5 +1,5 @@
-import { prismaMock } from '../../test/mocks/prisma.mock';
-import { PrismaService } from '../prisma/prisma.service';
+import { prismaMock } from '../../../test/mocks/prisma.mock';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ListingsService } from './listings.service';
 import { Test } from '@nestjs/testing';
 

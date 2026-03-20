@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ReviewsService } from './reviews.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { prismaMock } from '../../test/mocks/prisma.mock';
+import { PrismaService } from '../../prisma/prisma.service';
+import { prismaMock } from '../../../test/mocks/prisma.mock';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
