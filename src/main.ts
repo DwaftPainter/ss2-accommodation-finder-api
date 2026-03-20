@@ -19,11 +19,17 @@ async function bootstrap() {
     credentials: false,
   });
 
+  app.setGlobalPrefix('api', {
+    exclude: ['api/docs'], // exclude 'docs' endpoint
+  });
+
   // Set up swagger docs
   const config = new DocumentBuilder()
     .setTitle('Accommodation Finder API')
     .setDescription('API for rental listing system')
     .setVersion('1.0')
+    .addBearerAuth()
+    .addServer('/api')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

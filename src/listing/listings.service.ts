@@ -1,11 +1,14 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateListingDto } from './dto/create-listing.dto';
+import { QueryListingDto } from './dto/query-listing.dto';
+import { UpdateListingDto } from './dto/update-listing.dto';
 
 @Injectable()
 export class ListingsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(userId: string, data: any) {
+  async create(userId: string, data: CreateListingDto) {
     return this.prisma.listing.create({
       data: {
         ...data,
@@ -14,7 +17,7 @@ export class ListingsService {
     });
   }
 
-  async findAll(query: any) {
+  async findAll(query: QueryListingDto) {
     const {
       minPrice,
       maxPrice,
@@ -76,7 +79,7 @@ export class ListingsService {
     });
   }
 
-  async update(userId: string, id: string, data: any) {
+  async update(userId: string, id: string, data: UpdateListingDto) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
     });
