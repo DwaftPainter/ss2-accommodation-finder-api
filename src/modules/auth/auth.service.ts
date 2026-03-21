@@ -1,7 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { TokenService } from './token.service';
+import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -10,49 +16,74 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private tokenService: TokenService,
   ) {}
 
   async register(data: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (existingUser) {
-      throw new Error('Email already exists');
-    }
-
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        name: data.name,
-      },
-    });
+    let user: { id: string; email: string; name: string };
+    try {
+      user = await this.prisma.user.create({
+        data: { email: data.email, password: hashedPassword, name: data.name },
+        select: { id: true, email: true, name: true },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Email already exists');
+      }
+      throw e;
+    }
 
-    return this.generateToken(user.id);
+    return { user, ...(await this.generateTokens(user.id)) };
   }
 
   async login(data: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: data.email },
+      select: { id: true, email: true, name: true, password: true },
     });
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    const hash = user?.password ?? '$2b$10$invalidhashpadding000000000000';
+    const isMatch = await bcrypt.compare(data.password, hash);
 
-    const isMatch = await bcrypt.compare(data.password, user.password);
+    if (!user || !isMatch)
+      throw new UnauthorizedException('Invalid credentials');
 
-    if (!isMatch) throw new UnauthorizedException('Invalid credentials');
-
-    return this.generateToken(user.id);
+    const { password: _, ...safeUser } = user;
+    return { user: safeUser, ...(await this.generateTokens(user.id)) };
   }
 
-  generateToken(userId: string) {
-    const payload = { sub: userId };
+  async refresh(oldToken: string) {
+    const userId = await this.tokenService.resolveRefreshToken(oldToken);
+    if (!userId)
+      throw new UnauthorizedException('Refresh token invalid or expired');
 
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
+    const refreshToken = await this.tokenService.rotateRefreshToken(
+      oldToken,
+      userId,
+    );
+    const accessToken = await this.jwtService.signAsync({ sub: userId });
+
+    return { accessToken, refreshToken };
+  }
+
+  async logout(token: string, userId: string) {
+    await this.tokenService.deleteRefreshToken(token, userId);
+  }
+
+  async logoutAll(userId: string) {
+    await this.tokenService.deleteAllUserTokens(userId);
+  }
+
+  private async generateTokens(userId: string) {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync({ sub: userId }),
+      this.tokenService.createRefreshToken(userId),
+    ]);
+    return { accessToken, refreshToken };
   }
 }

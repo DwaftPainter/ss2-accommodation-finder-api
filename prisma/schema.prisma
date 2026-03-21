@@ -6,6 +6,15 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ListingStatus {
+  DRAFT // Chủ trọ đang soạn, chưa đăng
+  PENDING // Chờ admin duyệt
+  ACTIVE // Đang hiển thị công khai
+  PAUSED // Chủ trọ tạm ẩn
+  EXPIRED // Hết hạn đăng (sau 60 ngày)
+  REJECTED // Admin từ chối
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -39,6 +48,11 @@ model Listing {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  status     ListingStatus @default(DRAFT)
+  expiredAt  DateTime? // null cho đến khi ACTIVE, set khi duyệt
+  rejectedAt DateTime?
+  rejectNote String? // Lý do admin từ chối
+
   owner        User           @relation(fields: [ownerId], references: [id])
   reviews      Review[]
   savedByUsers SavedListing[]
@@ -46,6 +60,8 @@ model Listing {
   @@index([lat, lng])
   @@index([price])
   @@index([area])
+  @@index([status])
+  @@index([status, expiredAt])
 }
 
 model Review {
