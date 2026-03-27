@@ -2,10 +2,14 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenService } from './token.service';
+import { OtpService } from './otp.service';
+import { MailService } from '../../integrations/mail/mail.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
@@ -17,6 +21,8 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private tokenService: TokenService,
+    private otpService: OtpService,
+    private mailService: MailService,
   ) {}
 
   async register(data: RegisterDto) {
@@ -38,7 +44,20 @@ export class AuthService {
       throw e;
     }
 
-    return { user, ...(await this.generateTokens(user.id)) };
+    // Generate and send OTP for email verification
+    const otp = await this.otpService.generateOtp(user.email);
+    await this.mailService.sendMail({
+      to: user.email,
+      subject: 'Verify Your Email - Accommodation Finder',
+      template: 'verify-otp',
+      context: { name: user.name, otp },
+    });
+
+    return {
+      user,
+      ...(await this.generateTokens(user.id)),
+      message: 'Please check your email for the verification code',
+    };
   }
 
   async login(data: LoginDto) {
@@ -77,6 +96,66 @@ export class AuthService {
 
   async logoutAll(userId: string) {
     await this.tokenService.deleteAllUserTokens(userId);
+  }
+
+  async verifyEmail(email: string, otp: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, emailVerified: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email already verified');
+    }
+
+    const isValid = await this.otpService.verifyOtp(email, otp);
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    await this.prisma.user.update({
+      where: { email },
+      data: { emailVerified: true },
+    });
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendOtp(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, emailVerified: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email already verified');
+    }
+
+    try {
+      const otp = await this.otpService.generateOtp(user.email);
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Verify Your Email - Accommodation Finder',
+        template: 'verify-otp',
+        context: { name: user.name, otp },
+      });
+
+      return { message: 'Verification code sent successfully' };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('rate limit')) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 
   private async generateTokens(userId: string) {

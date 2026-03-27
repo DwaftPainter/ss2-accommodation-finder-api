@@ -2,6 +2,8 @@ import { Body, Controller, Post, Request, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 import { JwtAuthGuard } from './jwt.guard';
 
 @Controller('auth')
@@ -31,5 +33,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   logoutAll(@Request() req: { user: { sub: string } }) {
     return this.authService.logoutAll(req.user.sub);
+  }
+
+  @Post('verify-email')
+  verifyEmail(@Body() body: VerifyEmailDto) {
+    return this.authService.verifyEmail(body.email, body.otp);
+  }
+
+  @Post('resend-otp')
+  resendOtp(@Body() body: ResendOtpDto) {
+    return this.authService.resendOtp(body.email);
   }
 }
