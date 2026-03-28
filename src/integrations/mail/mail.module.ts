@@ -23,7 +23,7 @@ import { MailService } from './mail.service';
           from: configService.get<string>('mail.from'),
         },
         template: {
-          dir: join(__dirname, 'templates'),
+          dir: join(process.cwd(), 'src/integrations/mail/templates'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,

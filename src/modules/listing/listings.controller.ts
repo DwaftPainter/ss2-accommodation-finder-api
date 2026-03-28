@@ -9,10 +9,14 @@ import {
   Delete,
   UseGuards,
   Req,
+  ParseFloatPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ListingsService } from './listings.service';
-import { JwtAuthGuard } from 'src/modules/auth/jwt.guard';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
+@ApiTags('Listings')
 @Controller('listings')
 export class ListingsController {
   constructor(private service: ListingsService) {}
@@ -37,6 +41,51 @@ export class ListingsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Get('geocode/address')
+  @ApiOperation({ summary: 'Geocode an address to coordinates' })
+  @ApiQuery({
+    name: 'address',
+    description: 'Address to geocode',
+    example: '123 Main Street, Ho Chi Minh City',
+  })
+  async geocodeAddress(@Query('address') address: string) {
+    return this.service.geocodeAddress(address);
+  }
+
+  @Get('search/nearby')
+  @ApiOperation({ summary: 'Find listings near a location' })
+  @ApiQuery({ name: 'lat', description: 'Latitude' })
+  @ApiQuery({ name: 'lng', description: 'Longitude' })
+  @ApiQuery({
+    name: 'radius',
+    description: 'Radius in km',
+    required: false,
+    example: 5,
+  })
+  async findNearby(
+    @Query('lat', ParseFloatPipe) lat: number,
+    @Query('lng', ParseFloatPipe) lng: number,
+    @Query('radius', new ParseIntPipe({ optional: true })) radius?: number,
+  ) {
+    return this.service.findNearby(lat, lng, radius ?? 5);
+  }
+
+  @Get('search/by-address')
+  @ApiOperation({ summary: 'Search listings by address location' })
+  @ApiQuery({ name: 'address', description: 'Address to search near' })
+  @ApiQuery({
+    name: 'radius',
+    description: 'Radius in km',
+    required: false,
+    example: 5,
+  })
+  async searchByAddress(
+    @Query('address') address: string,
+    @Query('radius', new ParseIntPipe({ optional: true })) radius?: number,
+  ) {
+    return this.service.searchByAddress(address, radius ?? 5);
   }
 
   @UseGuards(JwtAuthGuard)

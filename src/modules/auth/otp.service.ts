@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Redis } from '@upstash/redis';
-import { UPSTASH_REDIS } from 'src/redis/redis.module';
+import { UPSTASH_REDIS } from '../../redis/redis.module';
 
 const OTP_TTL_SEC = 60 * 10; // 10 minutes
 const OTP_RATE_LIMIT_SEC = 60; // 1 minute between resends

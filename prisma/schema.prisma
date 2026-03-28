@@ -28,6 +28,11 @@ model User {
   listings      Listing[]
   reviews       Review[]
   savedListings SavedListing[]
+
+  // Chat relations
+  chatsAsUser1 Chat[] @relation("User1Chats")
+  chatsAsUser2 Chat[] @relation("User2Chats")
+  sentMessages Message[] @relation("SentMessages")
 }
 
 model Listing {
@@ -57,6 +62,7 @@ model Listing {
   owner        User           @relation(fields: [ownerId], references: [id])
   reviews      Review[]
   savedByUsers SavedListing[]
+  chats        Chat[]
 
   @@index([lat, lng])
   @@index([price])
@@ -88,4 +94,48 @@ model SavedListing {
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@id([userId, listingId])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Participants in the chat
+  user1Id String
+  user2Id String
+  user1   User   @relation("User1Chats", fields: [user1Id], references: [id])
+  user2   User   @relation("User2Chats", fields: [user2Id], references: [id])
+
+  // Related listing (optional - chat might be about a specific listing)
+  listingId String?
+  listing   Listing? @relation(fields: [listingId], references: [id])
+
+  messages Message[]
+
+  @@unique([user1Id, user2Id, listingId])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([listingId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+
+  // Sender
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id])
+
+  // Chat room
+  chatId String
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([createdAt])
 }

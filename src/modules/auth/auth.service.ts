@@ -27,6 +27,10 @@ export class AuthService {
 
   async register(data: RegisterDto) {
     const hashedPassword = await bcrypt.hash(data.password, 10);
+    console.log(
+      '🚀 ~ AuthService ~ register ~ hashedPassword:',
+      hashedPassword,
+    );
 
     let user: { id: string; email: string; name: string };
     try {
@@ -50,7 +54,7 @@ export class AuthService {
       to: user.email,
       subject: 'Verify Your Email - Accommodation Finder',
       template: 'verify-otp',
-      context: { name: user.name, otp },
+      context: { name: user.name, otp, year: new Date().getFullYear() },
     });
 
     return {
@@ -65,9 +69,14 @@ export class AuthService {
       where: { email: data.email },
       select: { id: true, email: true, name: true, password: true },
     });
+    console.log('🚀 ~ AuthService ~ login ~ user:', user)
 
     const hash = user?.password ?? '$2b$10$invalidhashpadding000000000000';
+    console.log('🚀 ~ AuthService ~ login ~ hash:', hash)
+    console.log('🚀 ~ AuthService ~ login ~ data.password:', data.password)
     const isMatch = await bcrypt.compare(data.password, hash);
+    
+    console.log("Track")
 
     if (!user || !isMatch)
       throw new UnauthorizedException('Invalid credentials');
