@@ -5,12 +5,16 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    JwtModule.register({
-      secret: process.env.T_KEY || 'SECRET_KEY',
-      signOptions: { expiresIn: '7d' },
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('jwt.secret'),
+        signOptions: { expiresIn: '7d' },
+      }),
     }),
   ],
   controllers: [ChatController],

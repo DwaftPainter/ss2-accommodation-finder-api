@@ -33,14 +33,17 @@ export class OtpService {
   }
 
   async verifyOtp(email: string, otp: string): Promise<boolean> {
+    console.log('🚀 ~ OtpService ~ verifyOtp ~ otp:', otp);
+    console.log('🚀 ~ OtpService ~ verifyOtp ~ email:', email);
     const otpKey = `otp:${email}`;
     const storedOtp = await this.redis.get<string>(otpKey);
+    console.log('🚀 ~ OtpService ~ verifyOtp ~ storedOtp:', typeof storedOtp);
 
     if (!storedOtp) {
       return false;
     }
 
-    if (storedOtp !== otp) {
+    if (String(storedOtp) !== otp) {
       return false;
     }
 

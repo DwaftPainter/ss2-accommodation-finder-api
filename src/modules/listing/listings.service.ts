@@ -144,11 +144,22 @@ export class ListingsService {
     const listings = await this.prisma.$queryRaw`
       SELECT
         l.*,
-        (6371 * acos(
-          cos(radians(${lat})) * cos(radians(l.lat)) *
-          cos(radians(l.lng) - radians(${lng})) +
-          sin(radians(${lat})) * sin(radians(l.lat))
-        )) AS distance
+        (2 * 6371 * atan2(
+          sqrt(
+            pow(sin(radians(l.lat - ${lat}) / 2), 2) +
+            cos(radians(${lat})) * cos(radians(l.lat)) *
+            pow(sin(radians(l.lng - ${lng}) / 2), 2)
+          ),
+          sqrt(
+            1 - (
+              pow(sin(radians(l.lat - ${lat}) / 2), 2) +
+              cos(radians(${lat})) * cos(radians(l.lat)) *
+              pow(sin(radians(l.lng - ${lng}) / 2), 2)
+            )
+          )
+        )
+      )
+      AS distance
       FROM "Listing" l
       WHERE l.status = 'ACTIVE'
       HAVING distance <= ${radiusKm}
