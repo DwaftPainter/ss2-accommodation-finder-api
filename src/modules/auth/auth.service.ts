@@ -46,6 +46,7 @@ export class AuthService {
 
     // Generate and send OTP for email verification
     const otp = await this.otpService.generateOtp(user.email);
+    console.log('🚀 ~ AuthService ~ register ~ otp:', otp)
     await this.mailService.sendMail({
       to: user.email,
       subject: 'Verify Your Email - Accommodation Finder',
