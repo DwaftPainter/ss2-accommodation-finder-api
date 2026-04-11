@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Redis } from '@upstash/redis';
 import * as crypto from 'crypto';
-import { UPSTASH_REDIS } from 'src/redis/redis.module';
+import { UPSTASH_REDIS } from '../../redis/redis.module';
 
 const REFRESH_TTL_SEC = 60 * 60 * 24 * 30; // 30 ngày
 

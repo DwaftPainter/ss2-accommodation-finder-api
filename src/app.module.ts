@@ -8,6 +8,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './configs/configuration';
 import { MailModule } from './integrations/mail/mail.module';
+import { MapModule } from './integrations/map/map.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { MailModule } from './integrations/mail/mail.module';
       load: [configuration],
     }),
     MailModule,
+    MapModule,
+    ChatModule,
     AuthModule,
     UsersModule,
     ListingsModule,
