@@ -6,19 +6,29 @@ import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TokenService } from './token.service';
 import { OtpService } from './otp.service';
-import { RedisModule } from 'src/redis/redis.module';
-import { MailModule } from 'src/integrations/mail/mail.module';
+import { RedisModule } from '../../redis/redis.module';
+import { MailModule } from '../../integrations/mail/mail.module';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     RedisModule,
     MailModule,
-    JwtModule.register({
-      secret: 'SECRET_KEY',
-      signOptions: { expiresIn: '7d' },
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('jwt.secret'),
+        signOptions: { expiresIn: '7d' },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PrismaService, TokenService, OtpService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PrismaService,
+    TokenService,
+    OtpService,
+  ],
 })
 export class AuthModule {}

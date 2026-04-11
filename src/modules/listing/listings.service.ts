@@ -1,12 +1,20 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MapService } from '../../integrations/map/map.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 
 @Injectable()
 export class ListingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mapService: MapService,
+  ) {}
 
   async create(userId: string, data: CreateListingDto) {
     return this.prisma.listing.create({
@@ -113,5 +121,74 @@ export class ListingsService {
       where: { ownerId: userId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Geocode an address using OpenStreetMap
+   */
+  async geocodeAddress(address: string) {
+    return this.mapService.geocode({ address });
+  }
+
+  /**
+   * Find listings near a specific location
+   */
+  async findNearby(
+    lat: number,
+    lng: number,
+    radiusKm: number = 5,
+    limit: number = 10,
+  ) {
+    // Using Haversine formula via raw query for accurate distance calculation
+    // This works with PostgreSQL
+    const listings = await this.prisma.$queryRaw`
+      SELECT
+        l.*,
+        (2 * 6371 * atan2(
+          sqrt(
+            pow(sin(radians(l.lat - ${lat}) / 2), 2) +
+            cos(radians(${lat})) * cos(radians(l.lat)) *
+            pow(sin(radians(l.lng - ${lng}) / 2), 2)
+          ),
+          sqrt(
+            1 - (
+              pow(sin(radians(l.lat - ${lat}) / 2), 2) +
+              cos(radians(${lat})) * cos(radians(l.lat)) *
+              pow(sin(radians(l.lng - ${lng}) / 2), 2)
+            )
+          )
+        )
+      )
+      AS distance
+      FROM "Listing" l
+      WHERE l.status = 'ACTIVE'
+      HAVING distance <= ${radiusKm}
+      ORDER BY distance
+      LIMIT ${limit}
+    `;
+
+    return listings;
+  }
+
+  /**
+   * Search listings by address using geocoding
+   */
+  async searchByAddress(address: string, radiusKm: number = 5) {
+    const geocodeResult = await this.mapService.geocode({ address });
+
+    if (!geocodeResult) {
+      throw new NotFoundException('Address not found');
+    }
+
+    const listings = await this.findNearby(
+      geocodeResult.lat,
+      geocodeResult.lng,
+      radiusKm,
+    );
+
+    return {
+      location: geocodeResult,
+      listings,
+    };
   }
 }

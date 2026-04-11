@@ -46,16 +46,17 @@ export class AuthService {
 
     // Generate and send OTP for email verification
     const otp = await this.otpService.generateOtp(user.email);
+    console.log('🚀 ~ AuthService ~ register ~ otp:', otp)
     await this.mailService.sendMail({
       to: user.email,
       subject: 'Verify Your Email - Accommodation Finder',
       template: 'verify-otp',
-      context: { name: user.name, otp },
+      context: { name: user.name, otp, year: new Date().getFullYear() },
     });
 
+    // No tokens returned here — user must verify email first
     return {
       user,
-      ...(await this.generateTokens(user.id)),
       message: 'Please check your email for the verification code',
     };
   }
@@ -123,7 +124,13 @@ export class AuthService {
       data: { emailVerified: true },
     });
 
-    return { message: 'Email verified successfully' };
+    // Tokens issued here — only after successful email verification
+    const { emailVerified: _, ...safeUser } = user;
+    return {
+      user: safeUser,
+      ...(await this.generateTokens(user.id)),
+      message: 'Email verified successfully',
+    };
   }
 
   async resendOtp(email: string) {
@@ -146,7 +153,7 @@ export class AuthService {
         to: user.email,
         subject: 'Verify Your Email - Accommodation Finder',
         template: 'verify-otp',
-        context: { name: user.name, otp },
+        context: { name: user.name, otp, year: new Date().getFullYear() },
       });
 
       return { message: 'Verification code sent successfully' };
