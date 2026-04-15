@@ -93,7 +93,8 @@ model User {
   phone         String?    @unique
   name          String
   avatarUrl     String?
-  password      String
+  password      String?
+  auth0Id       String?    @unique
   role          Role       @default(TENANT)
   status        UserStatus @default(ACTIVE)
   emailVerified Boolean    @default(false)
