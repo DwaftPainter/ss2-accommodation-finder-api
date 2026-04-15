@@ -1,62 +1,97 @@
 import {
   IsString,
   IsNumber,
+  IsInt,
   IsOptional,
   IsArray,
   IsPhoneNumber,
+  IsPositive,
+  IsEnum,
+  ArrayMinSize,
 } from 'class-validator';
+import { ListingType } from '@prisma/client';
 
 export class UpdateListingDto {
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  title: string;
+  title?: string;
 
+  @IsOptional()
+  @IsEnum(ListingType)
+  type?: ListingType;
+
+  // --- Address fields (partial update of the nested Address record) ---
+
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  address: string;
-
-  @IsNumber()
-  @IsOptional()
-  lat: number;
-
-  @IsNumber()
-  @IsOptional()
-  lng: number;
-
-  @IsNumber()
-  @IsOptional()
-  price: number;
-
-  @IsNumber()
-  @IsOptional()
-  area: number;
+  street?: string;
 
   @IsOptional()
+  @IsString()
+  ward?: string;
+
+  @IsOptional()
+  @IsString()
+  district?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  province?: string;
+
+  @IsOptional()
   @IsNumber()
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  lng?: number;
+
+  // --- Listing fields ---
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  price?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  area?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
   electricityFee?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @IsPositive()
   waterFee?: number;
 
   @IsOptional()
   @IsString()
   description?: string;
 
-  @IsArray()
   @IsOptional()
-  utilities: string[];
+  @IsArray()
+  @IsString({ each: true })
+  utilities?: string[];
 
-  @IsArray()
   @IsOptional()
-  images: string[];
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  images?: string[];
 
   @IsOptional()
   @IsString()
   contactName?: string;
 
   @IsOptional()
-  @IsString()
-  @IsPhoneNumber()
+  @IsPhoneNumber('VN')
   contactPhone?: string;
 }

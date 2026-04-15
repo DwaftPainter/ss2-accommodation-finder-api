@@ -1,5 +1,6 @@
 import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt.guard';
+import { Request } from 'express';
+import { JwtAuthGuard } from 'src/modules/auth/jwt.guard';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -9,14 +10,16 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Req() req) {
-     console.log('👉 Headers:', req.headers);
+  getMe(@Req() req: Request & { user: { userId: string } }) {
     return this.service.getMe(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch('me')
-  updateMe(@Req() req, @Body() body: UpdateUserDto) {
+  updateMe(
+    @Req() req: Request & { user: { userId: string } },
+    @Body() body: UpdateUserDto,
+  ) {
     return this.service.updateMe(req.user.userId, body);
   }
 }

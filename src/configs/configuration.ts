@@ -23,4 +23,9 @@ export default () => ({
     secret: process.env.JWT_SECRET_KEY ?? 'fallback-secret',
     expiresIn: '7d',
   },
+
+  ollama: {
+    apiKey: process.env.OLLAMA_API_KEY,
+    model: process.env.OLLAMA_MODEL ?? 'gpt-oss:120b-cloud',
+  },
 });

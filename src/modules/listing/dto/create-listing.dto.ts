@@ -1,17 +1,41 @@
 import {
   IsString,
   IsNumber,
+  IsInt,
   IsOptional,
   IsArray,
   IsPhoneNumber,
+  IsPositive,
+  IsEnum,
+  ArrayMinSize,
 } from 'class-validator';
+import { ListingType } from '@prisma/client';
 
 export class CreateListingDto {
   @IsString()
   title: string;
 
+  @IsOptional()
+  @IsEnum(ListingType)
+  type?: ListingType;
+
+  // --- Address fields (will be used to create a nested Address record) ---
+
   @IsString()
-  address: string;
+  street: string;
+
+  @IsOptional()
+  @IsString()
+  ward?: string;
+
+  @IsString()
+  district: string;
+
+  @IsString()
+  city: string;
+
+  @IsString()
+  province: string;
 
   @IsNumber()
   lat: number;
@@ -19,18 +43,24 @@ export class CreateListingDto {
   @IsNumber()
   lng: number;
 
-  @IsNumber()
+  // --- Listing fields ---
+
+  @IsInt()
+  @IsPositive()
   price: number;
 
   @IsNumber()
+  @IsPositive()
   area: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @IsPositive()
   electricityFee?: number;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @IsPositive()
   waterFee?: number;
 
   @IsOptional()
@@ -38,9 +68,12 @@ export class CreateListingDto {
   description?: string;
 
   @IsArray()
+  @IsString({ each: true })
   utilities: string[];
 
   @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
   images: string[];
 
   @IsOptional()
@@ -48,7 +81,6 @@ export class CreateListingDto {
   contactName?: string;
 
   @IsOptional()
-  @IsString()
-  @IsPhoneNumber()
+  @IsPhoneNumber('VN')
   contactPhone?: string;
 }

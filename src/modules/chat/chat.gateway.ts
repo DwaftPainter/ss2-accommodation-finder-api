@@ -117,7 +117,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       return { success: true, message };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to send message: ${error.message}`);
       return { error: error.message };
     }
@@ -164,7 +164,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       return { error: error.message };
     }
   }

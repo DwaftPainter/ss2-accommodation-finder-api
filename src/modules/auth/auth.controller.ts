@@ -4,6 +4,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { JwtAuthGuard } from './jwt.guard';
 
 @Controller('auth')
@@ -43,5 +44,10 @@ export class AuthController {
   @Post('resend-otp')
   resendOtp(@Body() body: ResendOtpDto) {
     return this.authService.resendOtp(body.email);
+  }
+
+  @Post('google')
+  googleLogin(@Body() body: GoogleLoginDto) {
+    return this.authService.googleLogin(body.token);
   }
 }

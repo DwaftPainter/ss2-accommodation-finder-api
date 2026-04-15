@@ -12,9 +12,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse();
     const status = exception.getStatus();
 
+    const exceptionResponse = exception.getResponse();
+
+    // ValidationPipe returns an object like { message: string[], error: string }
+    // Other exceptions return a plain string
+    const message =
+      typeof exceptionResponse === 'object'
+        ? (exceptionResponse as any).message
+        : exceptionResponse;
+
     response.status(status).json({
       statusCode: status,
-      message: exception.message,
+      message,
       timestamp: new Date().toISOString(),
     });
   }

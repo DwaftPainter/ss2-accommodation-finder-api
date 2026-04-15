@@ -8,5 +8,6 @@ import { MapModule } from '../../integrations/map/map.module';
   imports: [MapModule],
   controllers: [ListingsController],
   providers: [ListingsService, PrismaService],
+  exports: [ListingsService], // Export ListingsService so other modules can use it
 })
 export class ListingsModule {}

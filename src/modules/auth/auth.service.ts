@@ -5,6 +5,8 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenService } from './token.service';
@@ -15,6 +17,14 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
+interface Auth0UserInfo {
+  sub: string;
+  email: string;
+  name?: string;
+  picture?: string;
+  email_verified?: boolean;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -23,6 +33,7 @@ export class AuthService {
     private tokenService: TokenService,
     private otpService: OtpService,
     private mailService: MailService,
+    private httpService: HttpService,
   ) {}
 
   async register(data: RegisterDto) {
@@ -171,5 +182,95 @@ export class AuthService {
       this.tokenService.createRefreshToken(userId),
     ]);
     return { accessToken, refreshToken };
+  }
+
+  async googleLogin(auth0Token: string) {
+    // Validate the Auth0 token and get user info
+    let auth0User: Auth0UserInfo;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get<Auth0UserInfo>('https://dev-zhz6oe4tad5cryzr.us.auth0.com/userinfo', {
+          headers: { Authorization: `Bearer ${auth0Token}` },
+        }),
+      );
+      auth0User = response.data;
+    } catch {
+      throw new UnauthorizedException('Invalid Auth0 token');
+    }
+
+    if (!auth0User.email) {
+      throw new UnauthorizedException('Email not provided by Auth0');
+    }
+
+    // Try to find existing user by auth0Id or email
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ auth0Id: auth0User.sub }, { email: auth0User.email }],
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        auth0Id: true,
+        emailVerified: true,
+      },
+    });
+
+    if (user) {
+      // Update auth0Id if not set (user previously registered with email/password)
+      if (!user.auth0Id) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            auth0Id: auth0User.sub,
+            emailVerified: auth0User.email_verified ?? true,
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            auth0Id: true,
+            emailVerified: true,
+          },
+        });
+      }
+    } else {
+      // Create new user
+      try {
+        user = await this.prisma.user.create({
+          data: {
+            email: auth0User.email,
+            name: auth0User.name || auth0User.email.split('@')[0],
+            avatarUrl: auth0User.picture,
+            auth0Id: auth0User.sub,
+            emailVerified: auth0User.email_verified ?? true,
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            auth0Id: true,
+            emailVerified: true,
+          },
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002'
+        ) {
+          throw new ConflictException('Email already exists');
+        }
+        throw e;
+      }
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+      ...(await this.generateTokens(user.id)),
+    };
   }
 }
