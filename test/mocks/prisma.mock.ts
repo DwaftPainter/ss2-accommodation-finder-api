@@ -19,5 +19,18 @@ export const prismaMock = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  chat: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  message: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    updateMany: jest.fn(),
+    count: jest.fn(),
+  },
   $queryRaw: jest.fn(),
+  $transaction: jest.fn(),
 };
