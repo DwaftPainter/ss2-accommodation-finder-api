@@ -23,13 +23,53 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository for an accommodation finder application with AI-powered chat capabilities.
 
 ## Project setup
 
 ```bash
 $ npm install
 ```
+
+## AI Chat Service
+
+This application includes an AI-powered chat service that helps users find accommodation using cloud-based Large Language Models (currently configured for OpenAI).
+
+### Features
+
+- Natural language processing for accommodation queries
+- Integration with listing data to provide contextual responses
+- Price range and utility filtering based on user requests
+- REST API endpoints for chat interactions
+
+### Endpoints
+
+- `POST /ai-chat/message` - Send a message to the AI chatbot
+- `GET /ai-chat/health` - Health check for the AI service
+- `GET /ai-chat/test-connection` - Test connection to the AI provider
+
+### Setup
+
+1. Obtain an API key from your preferred AI provider (OpenAI, Anthropic, etc.)
+2. Configure environment variables in `.env`:
+   ```
+   AI_PROVIDER=openai
+   OPENAI_API_KEY=your_openai_api_key_here
+   AI_MODEL=gpt-3.5-turbo
+   ```
+
+### Usage
+
+Send a POST request to `/ai-chat/message` with a JSON body:
+
+```json
+{
+  "content": "I'm looking for a furnished apartment with wifi under £1200",
+  "role": "user"
+}
+```
+
+The AI will respond with relevant suggestions based on available listings.
 
 ## Compile and run the project
 
