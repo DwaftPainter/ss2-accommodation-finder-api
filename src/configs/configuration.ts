@@ -28,4 +28,11 @@ export default () => ({
     apiKey: process.env.OLLAMA_API_KEY,
     model: process.env.OLLAMA_MODEL ?? 'gpt-oss:120b-cloud',
   },
+
+  opensearch: {
+    node: process.env.OPENSEARCH_NODE ?? 'http://localhost:9200',
+    username: process.env.OPENSEARCH_USERNAME ?? 'admin',
+    password: process.env.OPENSEARCH_PASSWORD ?? 'admin',
+    ssl: process.env.OPENSEARCH_SSL === 'true',
+  },
 });
