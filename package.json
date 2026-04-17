@@ -19,6 +19,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "postinstall": "prisma generate"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "engines": {
     "npm": ">=10.0.0",
     "node": ">=20.0.0"
@@ -36,6 +39,7 @@
     "@nestjs/platform-socket.io": "^11.1.17",
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/websockets": "^11.1.17",
+    "@opensearch-project/opensearch": "^3.5.1",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "@upstash/redis": "^1.37.0",
