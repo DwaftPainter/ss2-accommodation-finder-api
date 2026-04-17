@@ -21,6 +21,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? (exceptionResponse as any).message
         : exceptionResponse;
 
+    console.log({
+      statusCode: status,
+      message,
+      timestamp: new Date().toISOString(),
+    });
+
     response.status(status).json({
       statusCode: status,
       message,
