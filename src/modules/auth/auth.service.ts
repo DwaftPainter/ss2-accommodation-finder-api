@@ -14,6 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { TokenService } from './token.service';
 import { OtpService } from './otp.service';
 import { MailService } from '../../integrations/mail/mail.service';
+import { OpensearchService, UserSearchDoc } from '../../integrations/opensearch/opensearch.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
@@ -38,13 +39,14 @@ export class AuthService {
     private otpService: OtpService,
     private mailService: MailService,
     private httpService: HttpService,
+    private opensearch: OpensearchService,
   ) {}
 
   async register(data: RegisterDto) {
     try {
       const hashedPassword = await bcrypt.hash(data.password, 10);
 
-      let user: { id: string; email: string; name: string };
+      let user: { id: string; email: string; name: string; createdAt: Date };
       try {
         user = await this.prisma.user.create({
           data: {
@@ -52,7 +54,7 @@ export class AuthService {
             password: hashedPassword,
             name: data.name,
           },
-          select: { id: true, email: true, name: true },
+          select: { id: true, email: true, name: true, createdAt: true },
         });
       } catch (e) {
         if (
@@ -64,6 +66,9 @@ export class AuthService {
         this.logger.error('[AuthService.register] Failed to create user:', e);
         throw e;
       }
+
+      // Index user in OpenSearch (fire and forget)
+      this.indexUserInBackground(user);
 
       try {
         const otp = await this.otpService.generateOtp(user.email);
@@ -227,10 +232,13 @@ export class AuthService {
       }
 
       try {
-        await this.prisma.user.update({
+        const updatedUser = await this.prisma.user.update({
           where: { email },
           data: { emailVerified: true },
+          select: { id: true, email: true, name: true, emailVerified: true, createdAt: true },
         });
+        // Update OpenSearch index (fire and forget)
+        this.indexUserInBackground(updatedUser);
       } catch (e) {
         this.logger.error(
           '[AuthService.verifyEmail] Failed to update emailVerified flag:',
@@ -337,6 +345,31 @@ export class AuthService {
     }
   }
 
+  private async indexUserInBackground(user: {
+    id: string;
+    email: string;
+    name: string;
+    createdAt: Date;
+    emailVerified?: boolean;
+  }) {
+    const doc: UserSearchDoc = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: 'user',
+      status: 'active',
+      emailVerified: user.emailVerified ?? false,
+      createdAt: user.createdAt.toISOString(),
+    };
+
+    try {
+      await this.opensearch.indexUser(doc);
+      this.logger.log(`Indexed user ${user.id} in OpenSearch`);
+    } catch (error) {
+      this.logger.warn(`Failed to index user ${user.id}: ${error.message}`);
+    }
+  }
+
   async googleLogin(auth0Token: string) {
     try {
       let auth0User: Auth0UserInfo;
@@ -366,6 +399,7 @@ export class AuthService {
         name: string;
         auth0Id: string | null;
         emailVerified: boolean;
+        createdAt: Date;
       } | null;
 
       try {
@@ -379,6 +413,7 @@ export class AuthService {
             name: true,
             auth0Id: true,
             emailVerified: true,
+            createdAt: true,
           },
         });
       } catch (e) {
@@ -404,8 +439,11 @@ export class AuthService {
                 name: true,
                 auth0Id: true,
                 emailVerified: true,
+                createdAt: true,
               },
             });
+            // Update OpenSearch index (fire and forget)
+            this.indexUserInBackground(user);
           } catch (e) {
             this.logger.error(
               '[AuthService.googleLogin] Failed to update user auth0Id:',
@@ -430,8 +468,11 @@ export class AuthService {
               name: true,
               auth0Id: true,
               emailVerified: true,
+              createdAt: true,
             },
           });
+          // Index new user in OpenSearch (fire and forget)
+          this.indexUserInBackground(user);
         } catch (e) {
           if (
             e instanceof Prisma.PrismaClientKnownRequestError &&
