@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ReviewsService } from './reviews.service';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import type { AuthenticatedRequest } from '../../common/types';
 
 @Controller('reviews')
 export class ReviewsController {
@@ -20,7 +21,7 @@ export class ReviewsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  create(@Req() req, @Body() body: CreateReviewDto) {
+  create(@Req() req: AuthenticatedRequest, @Body() body: CreateReviewDto) {
     return this.service.create(req.user.userId, body);
   }
 
@@ -31,13 +32,13 @@ export class ReviewsController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  update(@Req() req, @Param('id') id: string, @Body() body: UpdateReviewDto) {
+  update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: UpdateReviewDto) {
     return this.service.update(req.user.userId, id, body);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  delete(@Req() req, @Param('id') id: string) {
+  delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.delete(req.user.userId, id);
   }
 }

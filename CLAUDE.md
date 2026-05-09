@@ -68,6 +68,8 @@ npx prisma studio
 - **Framework**: NestJS with TypeScript
 - **Database**: PostgreSQL with Prisma ORM
 - **Cache/Session Store**: Upstash Redis (REST API)
+- **Search**: OpenSearch (users, chat messages) with PostgreSQL fallback
+- **AI**: Ollama API for chat responses
 - **Authentication**: JWT (access token) + Redis (refresh token rotation)
 - **Email**: Nodemailer with Handlebars templates
 - **Real-time Chat**: Socket.IO with JWT authentication
@@ -78,13 +80,15 @@ npx prisma studio
 src/
 ├── modules/          # Feature modules
 │   ├── auth/         # JWT + OTP email verification
-│   ├── chat/         # Real-time messaging with Socket.IO
-│   ├── user/         # User management
+│   ├── chat/         # Real-time messaging with Socket.IO + OpenSearch
+│   ├── user/         # User management + OpenSearch search
 │   ├── listing/      # Rental listings with status workflow
 │   └── review/       # Listing reviews
 ├── integrations/     # External service integrations
 │   ├── mail/         # Email service with HBS templates
-│   └── map/          # Map/OpenStreetMap integration
+│   ├── map/          # Map/OpenStreetMap integration
+│   ├── opensearch/   # OpenSearch service (users, chat messages indices)
+│   └── ollama/       # AI chat service with Ollama API
 ├── common/           # Shared utilities
 │   ├── filters/      # Exception filters
 │   ├── decorators/   # Custom decorators
@@ -127,6 +131,9 @@ Environment variables (see `.env.example`):
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Redis config
 - `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` - Email server config
 - `FRONTEND_URL` - For email template links
+- `OPENSEARCH_NODE` - OpenSearch node URL (default: http://localhost:9200)
+- `OPENSEARCH_USERNAME` / `OPENSEARCH_PASSWORD` - OpenSearch credentials
+- `OPENSEARCH_SSL` - Enable SSL for OpenSearch
 
 ### Global Setup
 
@@ -170,4 +177,39 @@ Environment variables (see `.env.example`):
 - `GET /chats` - Get user's chats
 - `GET /chats/:chatId/messages` - Get messages
 - `GET /chats/unread/count` - Get unread count
+- `GET /chats/search?q=...` - Search messages (OpenSearch with DB fallback)
+- `GET /chats/:chatId/history` - Get chat history (OpenSearch with DB fallback)
+
+### OpenSearch Integration
+
+**Global Module**: `OpensearchModule` is imported across the app (users, chat, AI, auth)
+
+**Indices**:
+- `users` - User documents (id, name, email, phone, role, status, emailVerified, createdAt)
+- `chat_messages` - Chat messages (id, chatId, senderId, senderName, content, type, createdAt, listingId)
+
+**Search Endpoints**:
+- `GET /users/search?q=...` - Search users by name/email/phone with filters
+- `GET /chats/search?q=...` - Search messages by content
+- `GET /opensearch/health` - Check OpenSearch availability
+
+**Fallback Behavior**:
+- All OpenSearch operations fall back to PostgreSQL if OpenSearch is unavailable
+- Indices are auto-created on startup (graceful failure if unavailable)
+- Message indexing and user indexing are "fire and forget" (logged warnings on failure)
+
+**User Indexing**: Users are automatically indexed on registration, Google login, and email verification
+
+### AI Chat Service
+
+**Endpoint**: `POST /ai-chat/message`
+
+**Flow**:
+1. Extract preferences from user message (price range, utilities)
+2. Retrieve recent chat history from OpenSearch (for context)
+3. Query listings from database based on preferences
+4. Call Ollama API with prompt + listings context + chat history
+5. Return AI response with related listings
+
+**Fallback**: If OpenSearch unavailable, AI continues without chat history context
 

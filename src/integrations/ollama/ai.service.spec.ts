@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { AIService } from './ai.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { ListingsService } from '../listing/listings.service';
+import { ListingsService } from '../../modules/listing/listings.service';
 import { of } from 'rxjs';
 import { AxiosResponse } from 'axios';
 
