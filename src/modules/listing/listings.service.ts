@@ -11,6 +11,7 @@ import { OpensearchService, ListingSearchDoc } from '../../integrations/opensear
 import { CreateListingDto } from './dto/create-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
 
 @Injectable()
 export class ListingsService {
@@ -18,6 +19,7 @@ export class ListingsService {
     private prisma: PrismaService,
     private mapService: MapService,
     private opensearchService: OpensearchService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   private mapToListingSearchDoc(listing: any): ListingSearchDoc {
@@ -47,7 +49,11 @@ export class ListingsService {
     };
   }
 
-  async create(userId: string, dto: CreateListingDto) {
+  async create(
+    userId: string,
+    dto: CreateListingDto,
+    files?: Express.Multer.File[],
+  ) {
     const {
       street,
       ward,
@@ -56,12 +62,22 @@ export class ListingsService {
       province,
       lat,
       lng,
+      images: existingImages = [],
       ...listingFields
     } = dto;
+
+    let uploadedImages: string[] = [];
+    if (files && files.length > 0) {
+      const uploadResults = await this.cloudinaryService.uploadFiles(files);
+      uploadedImages = uploadResults.map((result) => result.secure_url);
+    }
+
+    const allImages = [...existingImages, ...uploadedImages];
 
     const listing = await this.prisma.listing.create({
       data: {
         ...listingFields,
+        images: allImages,
         owner: { connect: { id: userId } },
         address: {
           create: { street, ward, district, city, province, lat, lng },

@@ -11,6 +11,8 @@ import {
   Req,
   ParseFloatPipe,
   ParseIntPipe,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -18,12 +20,15 @@ import {
   ApiTags,
   ApiParam,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { ListingsService } from './listings.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { SaveListingDto } from './dto/save-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 import type { AuthenticatedRequest } from '../../common/types';
+import { CreateListingDto } from './dto/create-listing.dto';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Listings')
 @Controller('listings')
@@ -32,9 +37,15 @@ export class ListingsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  // @ts-ignore
-  create(@Req() req: AuthenticatedRequest, @Body() body) {
-    return this.service.create(req.user.userId, body);
+  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Create a new listing with optional image uploads' })
+  @ApiConsumes('multipart/form-data')
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: CreateListingDto,
+    @UploadedFiles() files?: Express.Multer.File[],
+  ) {
+    return this.service.create(req.user.userId, body, files);
   }
 
   @Get()

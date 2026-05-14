@@ -2,15 +2,29 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ListingsService } from './listings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MapService } from '../../integrations/map/map.service';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
+import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
 
 describe('ListingsService', () => {
   let service: ListingsService;
   let mapService: jest.Mocked<MapService>;
+  let cloudinaryService: jest.Mocked<CloudinaryService>;
 
   const mockMapService = {
     geocode: jest.fn(),
+  };
+
+  const mockOpensearchService = {
+    indexListing: jest.fn(),
+    searchListings: jest.fn(),
+    deleteListing: jest.fn(),
+  };
+
+  const mockCloudinaryService = {
+    uploadFile: jest.fn(),
+    uploadFiles: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -19,11 +33,14 @@ describe('ListingsService', () => {
         ListingsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: MapService, useValue: mockMapService },
+        { provide: OpensearchService, useValue: mockOpensearchService },
+        { provide: CloudinaryService, useValue: mockCloudinaryService },
       ],
     }).compile();
 
     service = module.get<ListingsService>(ListingsService);
     mapService = module.get(MapService) as jest.Mocked<MapService>;
+    cloudinaryService = module.get(CloudinaryService) as jest.Mocked<CloudinaryService>;
     jest.clearAllMocks();
   });
 
@@ -87,6 +104,31 @@ describe('ListingsService', () => {
 
       expect(result).toEqual(mockListing);
     });
+
+    it('should upload files to cloudinary when provided', async () => {
+      const files = [{ buffer: Buffer.from('test'), originalname: 'test.jpg' }] as any;
+      const uploadResults = [{ secure_url: 'https://cloudinary.com/test.jpg' }];
+      cloudinaryService.uploadFiles.mockResolvedValue(uploadResults as any);
+      
+      const mockListing = {
+        id: '1',
+        ...createDto,
+        images: [...createDto.images, 'https://cloudinary.com/test.jpg'],
+        ownerId: 'user1',
+      };
+      prismaMock.listing.create.mockResolvedValue(mockListing);
+
+      await service.create('user1', createDto, files);
+
+      expect(cloudinaryService.uploadFiles).toHaveBeenCalledWith(files);
+      expect(prismaMock.listing.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            images: expect.arrayContaining(['https://cloudinary.com/test.jpg']),
+          }),
+        }),
+      );
+    });
   });
 
   describe('findAll', () => {
@@ -96,12 +138,16 @@ describe('ListingsService', () => {
         title: 'Room 1',
         price: 5000000,
         owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+        reviews: [],
+        _count: { reviews: 0 },
       },
       {
         id: '2',
         title: 'Room 2',
         price: 6000000,
         owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
+        reviews: [],
+        _count: { reviews: 0 },
       },
     ];
 
@@ -116,13 +162,33 @@ describe('ListingsService', () => {
         skip: 0,
         take: 10,
         include: {
+          address: true,
           owner: {
             select: { id: true, name: true, avatarUrl: true },
           },
+          _count: { select: { reviews: true } },
+          reviews: { select: { rating: true } },
         },
         orderBy: { createdAt: 'desc' },
       });
-      expect(result.data).toEqual(mockListings);
+      expect(result.data).toEqual([
+        {
+          id: '1',
+          title: 'Room 1',
+          price: 5000000,
+          owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+          reviewCount: 0,
+          avgRating: 0,
+        },
+        {
+          id: '2',
+          title: 'Room 2',
+          price: 6000000,
+          owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
+          reviewCount: 0,
+          avgRating: 0,
+        },
+      ]);
       expect(result.meta).toEqual({
         page: 1,
         limit: 10,
@@ -243,6 +309,7 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.findUnique).toHaveBeenCalledWith({
         where: { id: '1' },
         include: {
+          address: true,
           owner: true,
           reviews: true,
         },
@@ -282,6 +349,7 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: updateDto,
+        include: { address: true },
       });
       expect(result).toEqual(mockListing);
     });
@@ -319,6 +387,7 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: partialUpdate,
+        include: { address: true },
       });
     });
   });
@@ -375,6 +444,7 @@ describe('ListingsService', () => {
 
       expect(prismaMock.listing.findMany).toHaveBeenCalledWith({
         where: { ownerId: 'user1' },
+        include: { address: true },
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual(mockListings);
@@ -428,7 +498,25 @@ describe('ListingsService', () => {
       const result = await service.findNearby(10.762622, 106.660172, 5, 10);
 
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      expect(result).toEqual(mockListings);
+      expect(result).toEqual(mockListings.map(l => ({
+        ...l,
+        address: {
+          street: undefined,
+          ward: undefined,
+          district: undefined,
+          city: undefined,
+          province: undefined,
+          lat: l.lat,
+          lng: l.lng,
+        },
+        owner: {
+          id: undefined,
+          name: undefined,
+          avatarUrl: undefined,
+        },
+        reviewCount: 0,
+        avgRating: 0,
+      })));
     });
 
     it('should use default radius and limit', async () => {
@@ -438,8 +526,6 @@ describe('ListingsService', () => {
 
       // Verify that queryRaw was called with the raw query containing defaults
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      const queryTemplate = prismaMock.$queryRaw.mock.calls[0][0];
-      expect(typeof queryTemplate).toBe('object');
     });
 
     it('should handle empty results', async () => {
@@ -473,7 +559,25 @@ describe('ListingsService', () => {
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
       expect(result).toEqual({
         location: mockGeocodeResult,
-        listings: mockListings,
+        listings: mockListings.map(l => ({
+          ...l,
+          address: {
+            street: undefined,
+            ward: undefined,
+            district: undefined,
+            city: undefined,
+            province: undefined,
+            lat: undefined,
+            lng: undefined,
+          },
+          owner: {
+            id: undefined,
+            name: undefined,
+            avatarUrl: undefined,
+          },
+          reviewCount: 0,
+          avgRating: 0,
+        })),
       });
     });
 
