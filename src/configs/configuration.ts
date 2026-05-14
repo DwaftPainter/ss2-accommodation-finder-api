@@ -35,4 +35,10 @@ export default () => ({
     password: process.env.OPENSEARCH_PASSWORD ?? 'admin',
     ssl: process.env.OPENSEARCH_SSL === 'true',
   },
+
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+  },
 });

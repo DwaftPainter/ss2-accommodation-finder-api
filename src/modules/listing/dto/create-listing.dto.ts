@@ -71,10 +71,10 @@ export class CreateListingDto {
   @IsString({ each: true })
   utilities: string[];
 
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @IsString({ each: true })
-  images: string[];
+  images?: string[];
 
   @IsOptional()
   @IsString()

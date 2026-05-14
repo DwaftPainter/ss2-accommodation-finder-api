@@ -21,6 +21,7 @@
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "types": ["node", "multer"],
     "plugins": [
       {
         "name": "@nestjs/swagger/plugin",
