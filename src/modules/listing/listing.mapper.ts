@@ -9,30 +9,38 @@ type ListingWithRating = Prisma.ListingGetPayload<{
   include: {
     address: true;
     owner: { select: { id: true; name: true; avatarUrl: true } };
-    _count: { select: { reviews: true } };
-    reviews: { select: { rating: true } };
   };
 }>;
+
+export interface ListingRatingStats {
+  avgRating: number;
+  reviewCount: number;
+}
 
 export function averageRating(reviews: Array<{ rating: number }>) {
   if (reviews.length === 0) {
     return 0;
   }
 
-  return reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+  return (
+    reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+  );
 }
 
-export function mapListingWithRating(listing: ListingWithRating) {
-  const { _count, reviews, ...rest } = listing;
-
+export function mapListingWithRating(
+  listing: ListingWithRating,
+  stats?: ListingRatingStats,
+) {
   return {
-    ...rest,
-    reviewCount: _count.reviews,
-    avgRating: averageRating(reviews),
+    ...listing,
+    reviewCount: stats?.reviewCount ?? 0,
+    avgRating: stats?.avgRating ?? 0,
   };
 }
 
-export function mapToListingSearchDoc(listing: ListingWithAddress): ListingSearchDoc {
+export function mapToListingSearchDoc(
+  listing: ListingWithAddress,
+): ListingSearchDoc {
   return {
     id: listing.id,
     ownerId: listing.ownerId,

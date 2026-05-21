@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   ConflictException,
@@ -11,6 +12,7 @@ import { MapService } from '../../integrations/map/map.service';
 import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
+import { SearchListingDto } from './dto/search-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
 import {
@@ -70,13 +72,17 @@ export class ListingsService {
     });
 
     if (listing.status === ListingStatus.ACTIVE) {
-      await this.opensearchService.indexListing(mapToListingSearchDoc(listing));
+      Promise.resolve(
+        this.opensearchService.indexListing(mapToListingSearchDoc(listing)),
+      ).catch((error: Error) => {
+        this.logger.warn(`OpenSearch indexing failed: ${error.message}`);
+      });
     }
 
     return listing;
   }
 
-  async findAll(query: QueryListingDto) {
+  async findAll(query: QueryListingDto | SearchListingDto) {
     const {
       search,
       district,
@@ -93,41 +99,48 @@ export class ListingsService {
     // Try OpenSearch first if there's a search term
     if (search) {
       try {
-        const { listings: searchResults, total } = await this.opensearchService.searchListings(
-          search,
-          {
-            district,
-            minPrice: minPrice ? Number(minPrice) : undefined,
-            maxPrice: maxPrice ? Number(maxPrice) : undefined,
-            minArea: minArea ? Number(minArea) : undefined,
-            maxArea: maxArea ? Number(maxArea) : undefined,
-            utilities: typeof utilities === 'string' ? utilities.split(',') : utilities,
-            status: 'ACTIVE',
-          },
-          Number(page),
-          Number(limit),
-        );
+        const { listings: searchResults, total } =
+          await this.opensearchService.searchListings(
+            search,
+            {
+              district,
+              minPrice: minPrice ? Number(minPrice) : undefined,
+              maxPrice: maxPrice ? Number(maxPrice) : undefined,
+              minArea: minArea ? Number(minArea) : undefined,
+              maxArea: maxArea ? Number(maxArea) : undefined,
+              utilities:
+                typeof utilities === 'string'
+                  ? utilities.split(',')
+                  : utilities,
+              status: 'ACTIVE',
+            },
+            Number(page),
+            Number(limit),
+          );
 
         if (total > 0) {
           // Map OpenSearch results back to our format
           // Note: OpenSearch might not have all relations, so we might need to fetch them from DB
           // or just return what's in OpenSearch if it's enough.
           // For now, let's fetch IDs from DB to ensure we have all counts/relations correctly.
-          const ids = searchResults.map(r => r.id);
+          const ids = searchResults.map((r) => r.id);
           const data = await this.prisma.listing.findMany({
             where: { id: { in: ids } },
             include: listingSummaryInclude,
           });
 
           // Sort back to match OpenSearch order
-          const sortedData = ids.map(id => {
-            const l = data.find(item => item.id === id);
-            if (!l) return null;
-            return mapListingWithRating(l);
-          }).filter(Boolean);
+          const sortedData = ids
+            .map((id) => {
+              const l = data.find((item) => item.id === id);
+              return l ?? null;
+            })
+            .filter((listing): listing is (typeof data)[number] =>
+              Boolean(listing),
+            );
 
           return {
-            data: sortedData,
+            data: await this.mapListingsWithRatings(sortedData),
             meta: { page: Number(page), limit: Number(limit), total },
           };
         }
@@ -208,7 +221,7 @@ export class ListingsService {
       this.prisma.listing.count({ where }),
     ]);
 
-    const mappedData = data.map(mapListingWithRating);
+    const mappedData = await this.mapListingsWithRatings(data);
 
     return {
       data: mappedData,
@@ -221,7 +234,9 @@ export class ListingsService {
       where: { id },
       include: {
         address: true,
-        owner: { select: { id: true, name: true, avatarUrl: true, phone: true } },
+        owner: {
+          select: { id: true, name: true, avatarUrl: true, phone: true },
+        },
         _count: { select: { reviews: true } },
         reviews: {
           include: {
@@ -297,7 +312,9 @@ export class ListingsService {
     });
 
     if (updatedListing.status === ListingStatus.ACTIVE) {
-      await this.opensearchService.indexListing(mapToListingSearchDoc(updatedListing));
+      await this.opensearchService.indexListing(
+        mapToListingSearchDoc(updatedListing),
+      );
     } else {
       await this.opensearchService.deleteListing(updatedListing.id);
     }
@@ -340,7 +357,10 @@ export class ListingsService {
       if (!locations[addr.city][addr.district]) {
         locations[addr.city][addr.district] = [];
       }
-      if (addr.ward && !locations[addr.city][addr.district].includes(addr.ward)) {
+      if (
+        addr.ward &&
+        !locations[addr.city][addr.district].includes(addr.ward)
+      ) {
         locations[addr.city][addr.district].push(addr.ward);
       }
     });
@@ -354,7 +374,7 @@ export class ListingsService {
 
   async uploadImages(files: Express.Multer.File[]) {
     if (!files || files.length === 0) {
-      return [];
+      throw new BadRequestException('At least one image file is required');
     }
     const uploadResults = await this.cloudinaryService.uploadFiles(files);
     return uploadResults.map((result) => result.secure_url);
@@ -494,10 +514,7 @@ export class ListingsService {
         where: { userId },
         include: {
           listing: {
-            include: {
-              address: true,
-              ...listingSummaryInclude,
-            },
+            include: listingSummaryInclude,
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -507,13 +524,18 @@ export class ListingsService {
       this.prisma.savedListing.count({ where: { userId } }),
     ]);
 
+    const mappedListings = await this.mapListingsWithRatings(
+      data.map((item) => item.listing),
+    );
+    const mappedById = new Map(
+      mappedListings.map((listing) => [listing.id, listing]),
+    );
+
     return {
-      data: data.map((item) => {
-        return {
-          ...mapListingWithRating(item.listing),
-          savedAt: item.createdAt.toISOString(),
-        };
-      }),
+      data: data.map((item) => ({
+        ...mappedById.get(item.listing.id)!,
+        savedAt: item.createdAt.toISOString(),
+      })),
       meta: { page: pageNum, limit: limitNum, total },
     };
   }
@@ -523,5 +545,34 @@ export class ListingsService {
       where: { userId_listingId: { userId, listingId } },
     });
     return { saved: !!saved };
+  }
+
+  private async mapListingsWithRatings<
+    T extends Parameters<typeof mapListingWithRating>[0],
+  >(listings: T[]) {
+    if (listings.length === 0) {
+      return [];
+    }
+
+    const ratingRows = await this.prisma.review.groupBy({
+      by: ['listingId'],
+      where: { listingId: { in: listings.map((listing) => listing.id) } },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+
+    const ratingsByListing = new Map(
+      ratingRows.map((row) => [
+        row.listingId,
+        {
+          avgRating: row._avg.rating ?? 0,
+          reviewCount: row._count._all,
+        },
+      ]),
+    );
+
+    return listings.map((listing) =>
+      mapListingWithRating(listing, ratingsByListing.get(listing.id)),
+    );
   }
 }

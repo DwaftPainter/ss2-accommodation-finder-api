@@ -36,7 +36,6 @@ interface Auth0UserInfo {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly auth0Domain: string;
 
   constructor(
     private prisma: PrismaService,
@@ -47,13 +46,7 @@ export class AuthService {
     private httpService: HttpService,
     private opensearch: OpensearchService,
     private configService: ConfigService,
-  ) {
-    this.auth0Domain =
-      this.configAuth0Domain() ||
-      (() => {
-        throw new Error('AUTH0_DOMAIN is not defined');
-      })();
-  }
+  ) {}
 
   private configAuth0Domain() {
     return (
@@ -429,11 +422,17 @@ export class AuthService {
 
   async googleLogin(auth0Token: string) {
     try {
+      const auth0Domain =
+        this.configAuth0Domain() ||
+        (() => {
+          throw new BadRequestException('AUTH0_DOMAIN is not configured');
+        })();
+
       let auth0User: Auth0UserInfo;
       try {
         const response = await firstValueFrom(
           this.httpService.get<Auth0UserInfo>(
-            `https://${this.auth0Domain}/userinfo`,
+            `https://${auth0Domain}/userinfo`,
             { headers: { Authorization: `Bearer ${auth0Token}` } },
           ),
         );

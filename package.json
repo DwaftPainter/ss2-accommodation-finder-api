@@ -1,8 +1,8 @@
 {
-  "name": "nest-typescript-starter",
+  "name": "accommodation-finder-api",
   "private": true,
-  "version": "1.0.0",
-  "description": "Nest TypeScript starter repository",
+  "version": "0.1.0",
+  "description": "Accommodation Finder API",
   "license": "MIT",
   "scripts": {
     "build": "nest build",

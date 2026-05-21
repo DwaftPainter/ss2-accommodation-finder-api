@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsInt,
   IsNumber,
   IsOptional,
@@ -8,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class QueryListingDto {
+export class SearchListingDto {
   @IsOptional()
   @IsString()
   search?: string;
@@ -42,8 +43,9 @@ export class QueryListingDto {
   maxArea?: number;
 
   @IsOptional()
-  @IsString()
-  utilities?: string; // "wifi,parking"
+  @IsArray()
+  @IsString({ each: true })
+  utilities?: string[];
 
   @IsOptional()
   @Type(() => Number)

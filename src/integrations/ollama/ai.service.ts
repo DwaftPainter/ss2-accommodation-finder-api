@@ -1,10 +1,18 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
+import type { Cache } from 'cache-manager';
 import { Ollama } from 'ollama';
 import { ChatMessageDto } from './dto/chat-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { ListingsService } from 'src/modules/listing/listings.service';
-import { QueryListingDto } from 'src/modules/listing/dto/query-listing.dto';
+import { SearchListingDto } from 'src/modules/listing/dto/search-listing.dto';
 import { OpensearchService } from '../opensearch/opensearch.service';
 
 @Injectable()
@@ -17,12 +25,14 @@ export class AIService {
     private readonly configService: ConfigService,
     private readonly listingsService: ListingsService,
     private readonly opensearch: OpensearchService,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {
     this.model =
       this.configService.get<string>('ollama.model') || 'gpt-oss:120b-cloud';
     const apiKey = this.configService.get<string>('ollama.apiKey');
     this.ollama = new Ollama({
-      host: this.configService.get<string>('ollama.host') || 'https://ollama.com',
+      host:
+        this.configService.get<string>('ollama.host') || 'https://ollama.com',
       ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
     });
     this.logger.log(`AI service initialized with Ollama, model: ${this.model}`);
@@ -46,16 +56,22 @@ export class AIService {
       const preferences = this.extractPreferences(message.content);
 
       // Get chat history from OpenSearch (with fallback handled internally)
-      const chatHistory = await this.getChatHistoryWithFallback(message.sessionId);
+      const chatHistory = await this.getChatHistoryWithFallback(
+        message.sessionId,
+      );
 
-      const query: QueryListingDto = {};
+      const query: SearchListingDto = { limit: 10 };
       if (preferences.minPrice) query.minPrice = preferences.minPrice;
       if (preferences.maxPrice) query.maxPrice = preferences.maxPrice;
       if (preferences.utilities) query.utilities = preferences.utilities;
 
-      const listings = await this.listingsService.findAll(query);
+      const listings = await this.getListingsForPreferences(query);
       const listingsContext = this.formatListingsContext(listings.data);
-      const prompt = this.createPrompt(message.content, listingsContext, chatHistory);
+      const prompt = this.createPrompt(
+        message.content,
+        listingsContext,
+        chatHistory,
+      );
       const response = await this.callAI(prompt);
 
       return {
@@ -73,20 +89,32 @@ export class AIService {
     }
   }
 
-  private async getChatHistoryWithFallback(sessionId?: string): Promise<string> {
+  private async getChatHistoryWithFallback(
+    sessionId?: string,
+  ): Promise<string> {
     if (!sessionId) return '';
 
     try {
       // Try OpenSearch first
-      const result = await this.opensearch.searchUserChats(sessionId, '', 1, 10);
+      const result = await this.opensearch.searchUserChats(
+        sessionId,
+        '',
+        1,
+        10,
+      );
 
       if (result.messages.length === 0) return '';
 
       const history = result.messages
-        .map((m) => `${m.senderId === sessionId ? 'User' : 'Assistant'}: ${m.content}`)
+        .map(
+          (m) =>
+            `${m.senderId === sessionId ? 'User' : 'Assistant'}: ${m.content}`,
+        )
         .join('\n');
 
-      this.logger.log(`Retrieved ${result.messages.length} messages from OpenSearch`);
+      this.logger.log(
+        `Retrieved ${result.messages.length} messages from OpenSearch`,
+      );
       return `\nRecent conversation:\n${history}\n`;
     } catch (error) {
       this.logger.warn(`OpenSearch history failed: ${error.message}`);
@@ -116,9 +144,25 @@ export class AIService {
       utilities.push('furnished');
     if (content.toLowerCase().includes('unfurnished'))
       utilities.push('unfurnished');
-    if (utilities.length > 0) preferences.utilities = utilities.join(',');
+    if (utilities.length > 0) preferences.utilities = utilities;
 
     return preferences;
+  }
+
+  private async getListingsForPreferences(query: SearchListingDto) {
+    const key = `ai:listings:${JSON.stringify(query)}`;
+    const cached =
+      await this.cache.get<Awaited<ReturnType<ListingsService['findAll']>>>(
+        key,
+      );
+
+    if (cached) {
+      return cached;
+    }
+
+    const listings = await this.listingsService.findAll(query);
+    await this.cache.set(key, listings, 60_000);
+    return listings;
   }
 
   private formatListingsContext(listings: any[]): string {
@@ -141,7 +185,11 @@ export class AIService {
     );
   }
 
-  private createPrompt(userMessage: string, context: string, chatHistory: string): string {
+  private createPrompt(
+    userMessage: string,
+    context: string,
+    chatHistory: string,
+  ): string {
     return `You are a helpful accommodation finder assistant. Your job is to help users find suitable accommodation based on their preferences.
 
 ${chatHistory ? `${chatHistory}\n` : ''}${context ? `Available listings:\n${context}\n\n` : ''}User query: "${userMessage}"
