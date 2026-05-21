@@ -24,6 +24,7 @@ const prisma = new PrismaClient({
 
 const USER_1_ID = 'cmo2b8t4j0001hiskk227mr7r'; // Landlord
 const USER_2_ID = 'cmo37llqa0000xkskwbyholl4'; // Tenant
+const SEED_PASSWORD = 'congM456';
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -48,7 +49,7 @@ async function main() {
   console.log('🧹 Cleaned existing data');
 
   // ─── Users ─────────────────────────────────────────────────────────────────
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const hashedPassword = await bcrypt.hash(SEED_PASSWORD, 10);
 
   const landlord = await prisma.user.create({
     data: {
@@ -267,7 +268,7 @@ async function main() {
       waterFee: 80000,
       description:
         'Phòng trọ sạch sẽ, thoáng mát, đầy đủ nội thất. Gần chợ Bến Thành, tiện di chuyển.',
-      utilities: ['wifi', 'ac', 'parking', 'security', 'elevator'],
+      utilities: ['wifi', 'air_conditioning', 'parking', 'security', 'elevator'],
       images: [
         'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800',
         'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800',
@@ -287,7 +288,7 @@ async function main() {
       waterFee: 100000,
       description:
         'Căn hộ mini mới xây, thiết kế hiện đại. Full nội thất cao cấp.',
-      utilities: ['wifi', 'ac', 'washer', 'kitchen', 'security'],
+      utilities: ['wifi', 'air_conditioning', 'washer', 'kitchen', 'security'],
       images: [
         'https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=800',
         'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800',
@@ -307,7 +308,7 @@ async function main() {
       waterFee: 80000,
       description:
         'Studio mới, view đẹp nhìn ra sông Sài Gòn. Gần cầu Sài Gòn.',
-      utilities: ['wifi', 'ac', 'balcony', 'security'],
+      utilities: ['wifi', 'air_conditioning', 'balcony', 'security'],
       images: [
         'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800',
       ],
@@ -326,7 +327,7 @@ async function main() {
       waterFee: 150000,
       description:
         'Nhà nguyên căn 2 tầng, 3 phòng ngủ, 2 WC. Hẻm rộng, yên tĩnh.',
-      utilities: ['wifi', 'ac', 'parking', 'garden', 'washer'],
+      utilities: ['wifi', 'air_conditioning', 'parking', 'garden', 'washer'],
       images: [
         'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800',
       ],
@@ -343,7 +344,7 @@ async function main() {
       electricityFee: 4000,
       waterFee: 60000,
       description: 'Phòng trọ dành cho sinh viên, gần ĐH Quốc Gia. Giá hợp lý.',
-      utilities: ['wifi', 'ac', 'security'],
+      utilities: ['wifi', 'air_conditioning', 'security'],
       images: [
         'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800',
       ],
@@ -362,7 +363,7 @@ async function main() {
       waterFee: 100000,
       description:
         'Căn hộ gần biển Mỹ Khê. View biển tuyệt đẹp, đầy đủ tiện nghi.',
-      utilities: ['wifi', 'ac', 'pool', 'gym', 'security'],
+      utilities: ['wifi', 'air_conditioning', 'pool', 'gym', 'security'],
       images: [
         'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800',
       ],
@@ -646,7 +647,7 @@ async function main() {
   );
   console.log(`👤 Tenant    | ID: ${USER_2_ID} | email: tenant@accomfinder.vn`);
   console.log(`👤 Admin     | ID: ${admin.id}   | email: admin@accomfinder.vn`);
-  console.log(`🔑 Password  | password123 (all users)`);
+  console.log(`🔑 Password  | ${SEED_PASSWORD} (all users)`);
   console.log('─'.repeat(50));
 }
 

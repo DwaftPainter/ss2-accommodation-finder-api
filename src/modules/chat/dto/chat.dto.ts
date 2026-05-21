@@ -39,3 +39,25 @@ export class GetChatMessagesDto {
   @IsNumber()
   take?: number = 20;
 }
+
+export class SearchChatMessagesDto {
+  @ApiPropertyOptional({ description: 'Search query' })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by chat ID' })
+  @IsOptional()
+  @IsString()
+  chatId?: string;
+
+  @ApiPropertyOptional({ description: 'Page number', example: 1 })
+  @IsOptional()
+  @IsNumber()
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: 'Items per page', example: 20 })
+  @IsOptional()
+  @IsNumber()
+  limit?: number = 20;
+}

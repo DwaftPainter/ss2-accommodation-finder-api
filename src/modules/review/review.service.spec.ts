@@ -3,20 +3,26 @@ import { ReviewsService } from './reviews.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { NotificationsService } from '../notification/notifications.service';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
+  const notificationsMock = {
+    createForUser: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReviewsService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 
     service = module.get<ReviewsService>(ReviewsService);
     jest.clearAllMocks();
+    notificationsMock.createForUser.mockResolvedValue({});
   });
 
   describe('create', () => {
@@ -248,7 +254,7 @@ describe('ReviewsService', () => {
     });
 
     it('should update with partial data', async () => {
-      const partialUpdate = { content: 'Only updating content' };
+      const partialUpdate = { comment: 'Only updating content' };
       const mockReview = {
         id: 'review-1',
         ...partialUpdate,

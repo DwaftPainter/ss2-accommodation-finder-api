@@ -2,9 +2,8 @@ import { Test } from '@nestjs/testing';
 import { AIService } from './ai.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { ListingsService } from '../listing/listings.service';
-import { of } from 'rxjs';
-import { AxiosResponse } from 'axios';
+import { ListingsService } from '../../modules/listing/listings.service';
+import { OpensearchService } from '../opensearch/opensearch.service';
 
 // Mock HttpService
 const mockHttpService = {
@@ -19,6 +18,9 @@ const mockConfigService = {
     if (key === 'ai.apiKey') return 'test-key';
     if (key === 'ai.model') return 'gpt-3.5-turbo';
     if (key === 'ai.baseUrl') return 'https://api.openai.com/v1';
+    if (key === 'ollama.model') return 'gpt-oss:120b-cloud';
+    if (key === 'ollama.host') return 'https://ollama.com';
+    if (key === 'ollama.apiKey') return 'test-key';
     return undefined;
   }),
 };
@@ -26,6 +28,10 @@ const mockConfigService = {
 // Mock ListingsService
 const mockListingsService = {
   findAll: jest.fn(),
+};
+
+const mockOpensearchService = {
+  searchUserChats: jest.fn().mockResolvedValue({ messages: [], total: 0 }),
 };
 
 describe('AIService', () => {
@@ -38,10 +44,15 @@ describe('AIService', () => {
         { provide: HttpService, useValue: mockHttpService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: ListingsService, useValue: mockListingsService },
+        { provide: OpensearchService, useValue: mockOpensearchService },
       ],
     }).compile();
 
     service = module.get(AIService);
+    (service as any).ollama = {
+      list: jest.fn(),
+      chat: jest.fn(),
+    };
   });
 
   afterEach(() => {
@@ -54,24 +65,14 @@ describe('AIService', () => {
 
   describe('testConnection', () => {
     it('should return true when AI service is reachable', async () => {
-      const mockResponse: AxiosResponse = {
-        data: { data: [] },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as any,
-      };
-
-      mockHttpService.get.mockReturnValue(of(mockResponse));
+      (service as any).ollama.list.mockResolvedValue({ models: [] });
 
       const result = await service.testConnection();
       expect(result).toBe(true);
     });
 
     it('should return false when AI service is unreachable', async () => {
-      mockHttpService.get.mockImplementation(() => {
-        throw new Error('Connection failed');
-      });
+      (service as any).ollama.list.mockRejectedValue(new Error('Connection failed'));
 
       const result = await service.testConnection();
       expect(result).toBe(false);
@@ -99,22 +100,9 @@ describe('AIService', () => {
         },
       });
 
-      // Mock AI API response
-      const mockResponse: AxiosResponse = {
-        data: {
-          choices: [{
-            message: {
-              content: 'Here are some great options for you!'
-            }
-          }]
-        },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {} as any,
-      };
-
-      mockHttpService.post.mockReturnValue(of(mockResponse));
+      (service as any).ollama.chat.mockResolvedValue({
+        message: { content: 'Here are some great options for you!' },
+      });
 
       const message = {
         content: 'I need a place with wifi under £1200',

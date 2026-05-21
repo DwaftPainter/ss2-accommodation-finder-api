@@ -9,6 +9,7 @@ import { TokenService } from './token.service';
 import { OtpService } from './otp.service';
 import { RedisModule } from '../../redis/redis.module';
 import { MailModule } from '../../integrations/mail/mail.module';
+import { OpensearchModule } from '../../integrations/opensearch/opensearch.module';
 import { ConfigService } from '@nestjs/config';
 
 @Module({
@@ -16,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
     RedisModule,
     MailModule,
     HttpModule,
+    OpensearchModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

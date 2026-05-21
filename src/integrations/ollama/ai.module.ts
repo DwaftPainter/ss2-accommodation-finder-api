@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { AIService } from './ai.service';
 import { AIController } from './ai.controller';
 import { ListingsModule } from 'src/modules/listing/listings.module';
+import { OpensearchModule } from '../opensearch/opensearch.module';
 
 @Module({
   imports: [
@@ -10,7 +11,8 @@ import { ListingsModule } from 'src/modules/listing/listings.module';
       timeout: 10000, // Increase timeout for AI API calls
       maxRedirects: 5,
     }),
-    ListingsModule, // Import ListingsModule to access listing data
+    ListingsModule,
+    OpensearchModule,
   ],
   controllers: [AIController],
   providers: [AIService],

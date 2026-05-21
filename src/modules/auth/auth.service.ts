@@ -7,6 +7,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -14,10 +15,15 @@ import { JwtService } from '@nestjs/jwt';
 import { TokenService } from './token.service';
 import { OtpService } from './otp.service';
 import { MailService } from '../../integrations/mail/mail.service';
+import {
+  OpensearchService,
+  UserSearchDoc,
+} from '../../integrations/opensearch/opensearch.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { AUTH_CODES, authResponse } from './auth.messages';
 
 interface Auth0UserInfo {
   sub: string;
@@ -30,6 +36,7 @@ interface Auth0UserInfo {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly auth0Domain: string;
 
   constructor(
     private prisma: PrismaService,
@@ -38,13 +45,30 @@ export class AuthService {
     private otpService: OtpService,
     private mailService: MailService,
     private httpService: HttpService,
-  ) {}
+    private opensearch: OpensearchService,
+    private configService: ConfigService,
+  ) {
+    this.auth0Domain =
+      this.configAuth0Domain() ||
+      (() => {
+        throw new Error('AUTH0_DOMAIN is not defined');
+      })();
+  }
+
+  private configAuth0Domain() {
+    return (
+      this.configService.get<string>('auth0.domain') ||
+      process.env.AUTH0_DOMAIN ||
+      process.env.VITE_AUTH0_DOMAIN ||
+      undefined
+    )?.replace(/^https?:\/\//, '');
+  }
 
   async register(data: RegisterDto) {
     try {
       const hashedPassword = await bcrypt.hash(data.password, 10);
 
-      let user: { id: string; email: string; name: string };
+      let user: { id: string; email: string; name: string; createdAt: Date };
       try {
         user = await this.prisma.user.create({
           data: {
@@ -52,22 +76,24 @@ export class AuthService {
             password: hashedPassword,
             name: data.name,
           },
-          select: { id: true, email: true, name: true },
+          select: { id: true, email: true, name: true, createdAt: true },
         });
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
           e.code === 'P2002'
         ) {
-          throw new ConflictException('Email already exists');
+          throw new ConflictException(authResponse(AUTH_CODES.EMAIL_EXISTS));
         }
         this.logger.error('[AuthService.register] Failed to create user:', e);
         throw e;
       }
 
+      // Index user in OpenSearch (fire and forget)
+      this.indexUserInBackground(user);
+
       try {
         const otp = await this.otpService.generateOtp(user.email);
-        this.logger.debug(`Generated OTP for ${user.email}: ${otp}`);
         await this.mailService.sendMail({
           to: user.email,
           subject: 'Verify Your Email - Accommodation Finder',
@@ -80,13 +106,13 @@ export class AuthService {
           e,
         );
         throw new InternalServerErrorException(
-          'Failed to send verification email',
+          authResponse(AUTH_CODES.VERIFICATION_EMAIL_FAILED),
         );
       }
 
       return {
         user,
-        message: 'Please check your email for the verification code',
+        ...authResponse(AUTH_CODES.REGISTERED_VERIFICATION_REQUIRED),
       };
     } catch (e) {
       if (
@@ -96,38 +122,41 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.register] Unexpected error:', e);
-      throw new InternalServerErrorException('Registration failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.REGISTRATION_FAILED),
+      );
     }
   }
 
   async login(data: LoginDto) {
-    console.log('🚀 ~ AuthService ~ login ~ data:', data)
     try {
       const user = await this.prisma.user.findUnique({
         where: { email: data.email },
         select: { id: true, email: true, name: true, password: true },
       });
-      console.log('🚀 ~ AuthService ~ login ~ user:', user)
 
       const hash = user?.password ?? '$2b$10$invalidhashpadding000000000000';
-      console.log('🚀 ~ AuthService ~ login ~ hash:', hash)
       const isMatch = await bcrypt.compare(data.password, hash);
-      console.log('🚀 ~ AuthService ~ login ~ isMatch:', isMatch)
 
       if (!user || !isMatch) {
-        throw new UnauthorizedException('Invalid credentials');
+        throw new UnauthorizedException(
+          authResponse(AUTH_CODES.INVALID_CREDENTIALS),
+        );
       }
 
       const { password: _, ...safeUser } = user;
 
       try {
         const tokens = await this.generateTokens(user.id);
-        console.log('🚀 ~ AuthService ~ login ~ safeUser:', safeUser)
-        return { user: safeUser, ...tokens };
+        return {
+          user: safeUser,
+          ...tokens,
+          ...authResponse(AUTH_CODES.LOGIN_SUCCESS),
+        };
       } catch (e) {
         this.logger.error('[AuthService.login] Failed to generate tokens:', e);
         throw new InternalServerErrorException(
-          'Login failed: could not issue tokens',
+          authResponse(AUTH_CODES.LOGIN_FAILED),
         );
       }
     } catch (e) {
@@ -138,7 +167,9 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.login] Unexpected error:', e);
-      throw new InternalServerErrorException('Login failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.LOGIN_FAILED),
+      );
     }
   }
 
@@ -146,7 +177,9 @@ export class AuthService {
     try {
       const userId = await this.tokenService.resolveRefreshToken(oldToken);
       if (!userId) {
-        throw new UnauthorizedException('Refresh token invalid or expired');
+        throw new UnauthorizedException(
+          authResponse(AUTH_CODES.INVALID_REFRESH_TOKEN),
+        );
       }
 
       try {
@@ -158,7 +191,9 @@ export class AuthService {
         return { accessToken, refreshToken };
       } catch (e) {
         this.logger.error('[AuthService.refresh] Failed to rotate tokens:', e);
-        throw new InternalServerErrorException('Token refresh failed');
+        throw new InternalServerErrorException(
+          authResponse(AUTH_CODES.TOKEN_REFRESH_FAILED),
+        );
       }
     } catch (e) {
       if (
@@ -168,7 +203,9 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.refresh] Unexpected error:', e);
-      throw new InternalServerErrorException('Token refresh failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.TOKEN_REFRESH_FAILED),
+      );
     }
   }
 
@@ -204,11 +241,13 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException(authResponse(AUTH_CODES.USER_NOT_FOUND));
       }
 
       if (user.emailVerified) {
-        throw new BadRequestException('Email already verified');
+        throw new BadRequestException(
+          authResponse(AUTH_CODES.EMAIL_ALREADY_VERIFIED),
+        );
       }
 
       let isValid: boolean;
@@ -219,24 +258,39 @@ export class AuthService {
           '[AuthService.verifyEmail] OTP verification service error:',
           e,
         );
-        throw new InternalServerErrorException('OTP verification failed');
+        throw new InternalServerErrorException(
+          authResponse(AUTH_CODES.OTP_VERIFICATION_FAILED),
+        );
       }
 
       if (!isValid) {
-        throw new BadRequestException('Invalid or expired OTP');
+        throw new BadRequestException(
+          authResponse(AUTH_CODES.OTP_INVALID_OR_EXPIRED),
+        );
       }
 
       try {
-        await this.prisma.user.update({
+        const updatedUser = await this.prisma.user.update({
           where: { email },
           data: { emailVerified: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            emailVerified: true,
+            createdAt: true,
+          },
         });
+        // Update OpenSearch index (fire and forget)
+        this.indexUserInBackground(updatedUser);
       } catch (e) {
         this.logger.error(
           '[AuthService.verifyEmail] Failed to update emailVerified flag:',
           e,
         );
-        throw new InternalServerErrorException('Failed to verify email');
+        throw new InternalServerErrorException(
+          authResponse(AUTH_CODES.OTP_VERIFICATION_FAILED),
+        );
       }
 
       const { emailVerified: _, ...safeUser } = user;
@@ -246,7 +300,7 @@ export class AuthService {
         return {
           user: safeUser,
           ...tokens,
-          message: 'Email verified successfully',
+          ...authResponse(AUTH_CODES.EMAIL_VERIFIED),
         };
       } catch (e) {
         this.logger.error(
@@ -254,7 +308,7 @@ export class AuthService {
           e,
         );
         throw new InternalServerErrorException(
-          'Email verified but failed to issue tokens',
+          authResponse(AUTH_CODES.TOKEN_REFRESH_FAILED),
         );
       }
     } catch (e) {
@@ -266,7 +320,9 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.verifyEmail] Unexpected error:', e);
-      throw new InternalServerErrorException('Email verification failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.OTP_VERIFICATION_FAILED),
+      );
     }
   }
 
@@ -278,11 +334,13 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException(authResponse(AUTH_CODES.USER_NOT_FOUND));
       }
 
       if (user.emailVerified) {
-        throw new BadRequestException('Email already verified');
+        throw new BadRequestException(
+          authResponse(AUTH_CODES.EMAIL_ALREADY_VERIFIED),
+        );
       }
 
       try {
@@ -294,17 +352,22 @@ export class AuthService {
           context: { name: user.name, otp, year: new Date().getFullYear() },
         });
 
-        return { message: 'Verification code sent successfully' };
+        return authResponse(AUTH_CODES.OTP_RESENT);
       } catch (error) {
-        if (error instanceof Error && error.message.includes('rate limit')) {
-          throw new BadRequestException(error.message);
+        if (
+          error instanceof Error &&
+          error.message.includes('wait before requesting')
+        ) {
+          throw new BadRequestException(
+            authResponse(AUTH_CODES.OTP_RATE_LIMITED),
+          );
         }
         this.logger.error(
           '[AuthService.resendOtp] Failed to generate/send OTP:',
           error,
         );
         throw new InternalServerErrorException(
-          'Failed to resend verification code',
+          authResponse(AUTH_CODES.OTP_RESEND_FAILED),
         );
       }
     } catch (e) {
@@ -316,7 +379,9 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.resendOtp] Unexpected error:', e);
-      throw new InternalServerErrorException('Resend OTP failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.OTP_RESEND_FAILED),
+      );
     }
   }
 
@@ -337,13 +402,38 @@ export class AuthService {
     }
   }
 
+  private async indexUserInBackground(user: {
+    id: string;
+    email: string;
+    name: string;
+    createdAt?: Date;
+    emailVerified?: boolean;
+  }) {
+    const doc: UserSearchDoc = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: 'user',
+      status: 'active',
+      emailVerified: user.emailVerified ?? false,
+      createdAt: (user.createdAt ?? new Date()).toISOString(),
+    };
+
+    try {
+      await this.opensearch.indexUser(doc);
+      this.logger.log(`Indexed user ${user.id} in OpenSearch`);
+    } catch (error) {
+      this.logger.warn(`Failed to index user ${user.id}: ${error.message}`);
+    }
+  }
+
   async googleLogin(auth0Token: string) {
     try {
       let auth0User: Auth0UserInfo;
       try {
         const response = await firstValueFrom(
           this.httpService.get<Auth0UserInfo>(
-            'https://dev-zhz6oe4tad5cryzr.us.auth0.com/userinfo',
+            `https://${this.auth0Domain}/userinfo`,
             { headers: { Authorization: `Bearer ${auth0Token}` } },
           ),
         );
@@ -353,11 +443,15 @@ export class AuthService {
           '[AuthService.googleLogin] Failed to fetch Auth0 user info:',
           e,
         );
-        throw new UnauthorizedException('Invalid Auth0 token');
+        throw new UnauthorizedException(
+          authResponse(AUTH_CODES.AUTH0_TOKEN_INVALID),
+        );
       }
 
       if (!auth0User.email) {
-        throw new UnauthorizedException('Email not provided by Auth0');
+        throw new UnauthorizedException(
+          authResponse(AUTH_CODES.AUTH0_EMAIL_MISSING),
+        );
       }
 
       let user: {
@@ -366,6 +460,7 @@ export class AuthService {
         name: string;
         auth0Id: string | null;
         emailVerified: boolean;
+        createdAt: Date;
       } | null;
 
       try {
@@ -379,6 +474,7 @@ export class AuthService {
             name: true,
             auth0Id: true,
             emailVerified: true,
+            createdAt: true,
           },
         });
       } catch (e) {
@@ -386,7 +482,9 @@ export class AuthService {
           '[AuthService.googleLogin] Failed to query user from DB:',
           e,
         );
-        throw new InternalServerErrorException('Google login failed');
+        throw new InternalServerErrorException(
+          authResponse(AUTH_CODES.GOOGLE_LOGIN_FAILED),
+        );
       }
 
       if (user) {
@@ -404,14 +502,19 @@ export class AuthService {
                 name: true,
                 auth0Id: true,
                 emailVerified: true,
+                createdAt: true,
               },
             });
+            // Update OpenSearch index (fire and forget)
+            this.indexUserInBackground(user);
           } catch (e) {
             this.logger.error(
               '[AuthService.googleLogin] Failed to update user auth0Id:',
               e,
             );
-            throw new InternalServerErrorException('Google login failed');
+            throw new InternalServerErrorException(
+              authResponse(AUTH_CODES.GOOGLE_LOGIN_FAILED),
+            );
           }
         }
       } else {
@@ -430,14 +533,17 @@ export class AuthService {
               name: true,
               auth0Id: true,
               emailVerified: true,
+              createdAt: true,
             },
           });
+          // Index new user in OpenSearch (fire and forget)
+          this.indexUserInBackground(user);
         } catch (e) {
           if (
             e instanceof Prisma.PrismaClientKnownRequestError &&
             e.code === 'P2002'
           ) {
-            throw new ConflictException('Email already exists');
+            throw new ConflictException(authResponse(AUTH_CODES.EMAIL_EXISTS));
           }
           this.logger.error(
             '[AuthService.googleLogin] Failed to create new user:',
@@ -456,6 +562,7 @@ export class AuthService {
             name: user.name,
           },
           ...tokens,
+          ...authResponse(AUTH_CODES.GOOGLE_LOGIN_SUCCESS),
         };
       } catch (e) {
         this.logger.error(
@@ -463,7 +570,7 @@ export class AuthService {
           e,
         );
         throw new InternalServerErrorException(
-          'Google login failed: could not issue tokens',
+          authResponse(AUTH_CODES.GOOGLE_LOGIN_FAILED),
         );
       }
     } catch (e) {
@@ -475,7 +582,9 @@ export class AuthService {
         throw e;
       }
       this.logger.error('[AuthService.googleLogin] Unexpected error:', e);
-      throw new InternalServerErrorException('Google login failed');
+      throw new InternalServerErrorException(
+        authResponse(AUTH_CODES.GOOGLE_LOGIN_FAILED),
+      );
     }
   }
 }

@@ -2,15 +2,23 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateReviewDto } from './dto/create-review.dto';
+import { UpdateReviewDto } from './dto/update-review.dto';
+import { NotificationsService } from '../notification/notifications.service';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ReviewsService.name);
 
-  async create(userId: string, data: any) {
-    // Prevent to review by my ownÏ
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
+
+  async create(userId: string, data: CreateReviewDto) {
     const listing = await this.prisma.listing.findUnique({
       where: { id: data.listingId },
     });
@@ -36,12 +44,28 @@ export class ReviewsService {
       throw new BadRequestException('You already reviewed this listing');
     }
 
-    return this.prisma.review.create({
+    const review = await this.prisma.review.create({
       data: {
         ...data,
         userId,
       },
     });
+
+    this.notifications
+      .createForUser({
+        userId: listing.ownerId,
+        type: 'NEW_REVIEW',
+        title: 'Đánh giá mới',
+        body: `Tin "${listing.title}" vừa có đánh giá ${data.rating} sao.`,
+        refId: listing.id,
+      })
+      .catch((error) =>
+        this.logger.warn(
+          `Failed to create review notification: ${error.message}`,
+        ),
+      );
+
+    return review;
   }
 
   async getByListing(listingId: string) {
@@ -74,7 +98,7 @@ export class ReviewsService {
     };
   }
 
-  async update(userId: string, reviewId: string, data: any) {
+  async update(userId: string, reviewId: string, data: UpdateReviewDto) {
     const review = await this.prisma.review.findUnique({
       where: { id: reviewId },
     });

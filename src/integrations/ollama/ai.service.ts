@@ -5,29 +5,32 @@ import { ChatMessageDto } from './dto/chat-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { ListingsService } from 'src/modules/listing/listings.service';
 import { QueryListingDto } from 'src/modules/listing/dto/query-listing.dto';
-
-const ollama = new Ollama({
-  host: 'https://ollama.com',
-  headers: { Authorization: 'Bearer ' + "1c9058bfa1fd4588bd7274db967b58de.kn-WPpfEorEY5R3ouCVeBj6o" },
-});
+import { OpensearchService } from '../opensearch/opensearch.service';
 
 @Injectable()
 export class AIService {
   private readonly logger = new Logger(AIService.name);
   private readonly model: string;
+  private readonly ollama: Ollama;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly listingsService: ListingsService,
+    private readonly opensearch: OpensearchService,
   ) {
     this.model =
       this.configService.get<string>('ollama.model') || 'gpt-oss:120b-cloud';
+    const apiKey = this.configService.get<string>('ollama.apiKey');
+    this.ollama = new Ollama({
+      host: this.configService.get<string>('ollama.host') || 'https://ollama.com',
+      ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
+    });
     this.logger.log(`AI service initialized with Ollama, model: ${this.model}`);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const list = await ollama.list();
+      const list = await this.ollama.list();
       this.logger.log(
         `Ollama connected, models available: ${list.models.length}`,
       );
@@ -42,14 +45,17 @@ export class AIService {
     try {
       const preferences = this.extractPreferences(message.content);
 
+      // Get chat history from OpenSearch (with fallback handled internally)
+      const chatHistory = await this.getChatHistoryWithFallback(message.sessionId);
+
       const query: QueryListingDto = {};
       if (preferences.minPrice) query.minPrice = preferences.minPrice;
       if (preferences.maxPrice) query.maxPrice = preferences.maxPrice;
       if (preferences.utilities) query.utilities = preferences.utilities;
 
       const listings = await this.listingsService.findAll(query);
-      const context = this.formatListingsContext(listings.data);
-      const prompt = this.createPrompt(message.content, context);
+      const listingsContext = this.formatListingsContext(listings.data);
+      const prompt = this.createPrompt(message.content, listingsContext, chatHistory);
       const response = await this.callAI(prompt);
 
       return {
@@ -59,11 +65,32 @@ export class AIService {
         relatedListings: listings.data.slice(0, 3),
       };
     } catch (error: any) {
-      this.logger.error('Error generating response:', error.message);
+      this.logger.error('Error generating response:', error);
       throw new HttpException(
         `Failed to generate response: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  private async getChatHistoryWithFallback(sessionId?: string): Promise<string> {
+    if (!sessionId) return '';
+
+    try {
+      // Try OpenSearch first
+      const result = await this.opensearch.searchUserChats(sessionId, '', 1, 10);
+
+      if (result.messages.length === 0) return '';
+
+      const history = result.messages
+        .map((m) => `${m.senderId === sessionId ? 'User' : 'Assistant'}: ${m.content}`)
+        .join('\n');
+
+      this.logger.log(`Retrieved ${result.messages.length} messages from OpenSearch`);
+      return `\nRecent conversation:\n${history}\n`;
+    } catch (error) {
+      this.logger.warn(`OpenSearch history failed: ${error.message}`);
+      return '';
     }
   }
 
@@ -114,10 +141,10 @@ export class AIService {
     );
   }
 
-  private createPrompt(userMessage: string, context: string): string {
+  private createPrompt(userMessage: string, context: string, chatHistory: string): string {
     return `You are a helpful accommodation finder assistant. Your job is to help users find suitable accommodation based on their preferences.
 
-${context ? `Available listings:\n${context}\n\n` : ''}User query: "${userMessage}"
+${chatHistory ? `${chatHistory}\n` : ''}${context ? `Available listings:\n${context}\n\n` : ''}User query: "${userMessage}"
 
 Please provide a helpful response that:
 1. Addresses the user's specific query
@@ -125,13 +152,14 @@ Please provide a helpful response that:
 3. Provides helpful advice about finding accommodation
 4. Maintains a friendly, professional tone
 5. If no listings were found, suggest broadening the search criteria
+6. Consider the conversation context when relevant
 
 Response:`;
   }
 
   private async callAI(prompt: string): Promise<string> {
     try {
-      const response = await ollama.chat({
+      const response = await this.ollama.chat({
         model: this.model,
         messages: [
           {

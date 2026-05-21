@@ -2,15 +2,30 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ListingsService } from './listings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MapService } from '../../integrations/map/map.service';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
+import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
+import { ListingStatus, ListingType } from '@prisma/client';
 
 describe('ListingsService', () => {
   let service: ListingsService;
   let mapService: jest.Mocked<MapService>;
+  let cloudinaryService: jest.Mocked<CloudinaryService>;
 
   const mockMapService = {
     geocode: jest.fn(),
+  };
+
+  const mockOpensearchService = {
+    indexListing: jest.fn(),
+    searchListings: jest.fn(),
+    deleteListing: jest.fn(),
+  };
+
+  const mockCloudinaryService = {
+    uploadFile: jest.fn(),
+    uploadFiles: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -19,18 +34,26 @@ describe('ListingsService', () => {
         ListingsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: MapService, useValue: mockMapService },
+        { provide: OpensearchService, useValue: mockOpensearchService },
+        { provide: CloudinaryService, useValue: mockCloudinaryService },
       ],
     }).compile();
 
     service = module.get<ListingsService>(ListingsService);
     mapService = module.get(MapService) as jest.Mocked<MapService>;
+    cloudinaryService = module.get(CloudinaryService) as jest.Mocked<CloudinaryService>;
     jest.clearAllMocks();
   });
 
   describe('create', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
     const createDto = {
       title: 'Phòng trọ Quận 1',
-      address: '123 Nguyễn Trãi, Q1',
+      street: '123 Nguyễn Trãi',
+      ward: 'Phường Bến Thành',
+      district: 'Quận 1',
+      city: 'Hồ Chí Minh',
+      province: 'Hồ Chí Minh',
       lat: 10.762622,
       lng: 106.660172,
       price: 5000000,
@@ -44,45 +67,84 @@ describe('ListingsService', () => {
       contactPhone: '0901234567',
     };
 
+    const createPersistedListing = (dto: typeof createDto | any) => ({
+      id: '1',
+      ...dto,
+      type: ListingType.ROOM,
+      status: ListingStatus.ACTIVE,
+      createdAt,
+      ownerId: 'user1',
+      address: {
+        street: dto.street,
+        ward: dto.ward,
+        district: dto.district,
+        city: dto.city,
+        province: dto.province,
+        lat: dto.lat,
+        lng: dto.lng,
+      },
+    });
+
     it('should create listing', async () => {
-      const mockListing = {
-        id: '1',
-        title: 'Room',
-        ...createDto,
-        ownerId: 'user1',
-      };
+      const mockListing = createPersistedListing(createDto);
       prismaMock.listing.create.mockResolvedValue(mockListing);
 
       const result = await service.create('user1', createDto);
 
-      expect(prismaMock.listing.create).toHaveBeenCalledWith({
-        data: {
-          ...createDto,
-          ownerId: 'user1',
-        },
-      });
+      expect(prismaMock.listing.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ListingStatus.ACTIVE,
+          }),
+        }),
+      );
+      expect(mockOpensearchService.indexListing).toHaveBeenCalled();
       expect(result).toEqual(mockListing);
     });
 
     it('should create listing with minimal data', async () => {
       const minimalDto = {
         title: 'Simple Room',
-        address: '456 Street',
+        street: '456 Street',
+        district: 'District 1',
+        city: 'City',
+        province: 'Province',
         lat: 10.0,
         lng: 106.0,
         price: 3000000,
         area: 20,
+        utilities: [],
+        images: ['img.jpg'],
       };
-      const mockListing = {
-        id: '1',
-        ...minimalDto,
-        ownerId: 'user1',
-      };
+      const mockListing = createPersistedListing(minimalDto);
       prismaMock.listing.create.mockResolvedValue(mockListing);
 
       const result = await service.create('user1', minimalDto as any);
 
       expect(result).toEqual(mockListing);
+    });
+
+    it('should upload files to cloudinary when provided', async () => {
+      const files = [{ buffer: Buffer.from('test'), originalname: 'test.jpg' }] as any;
+      const uploadResults = [{ secure_url: 'https://cloudinary.com/test.jpg' }];
+      cloudinaryService.uploadFiles.mockResolvedValue(uploadResults as any);
+      
+      const mockListing = createPersistedListing({
+        ...createDto,
+        images: [...createDto.images, 'https://cloudinary.com/test.jpg'],
+      });
+      prismaMock.listing.create.mockResolvedValue(mockListing);
+
+      await service.create('user1', createDto, files);
+
+      expect(cloudinaryService.uploadFiles).toHaveBeenCalledWith(files);
+      expect(prismaMock.listing.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            images: expect.arrayContaining(['https://cloudinary.com/test.jpg']),
+          }),
+        }),
+      );
     });
   });
 
@@ -93,12 +155,16 @@ describe('ListingsService', () => {
         title: 'Room 1',
         price: 5000000,
         owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+        reviews: [],
+        _count: { reviews: 0 },
       },
       {
         id: '2',
         title: 'Room 2',
         price: 6000000,
         owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
+        reviews: [],
+        _count: { reviews: 0 },
       },
     ];
 
@@ -113,13 +179,33 @@ describe('ListingsService', () => {
         skip: 0,
         take: 10,
         include: {
+          address: true,
           owner: {
             select: { id: true, name: true, avatarUrl: true },
           },
+          _count: { select: { reviews: true } },
+          reviews: { select: { rating: true } },
         },
         orderBy: { createdAt: 'desc' },
       });
-      expect(result.data).toEqual(mockListings);
+      expect(result.data).toEqual([
+        {
+          id: '1',
+          title: 'Room 1',
+          price: 5000000,
+          owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+          reviewCount: 0,
+          avgRating: 0,
+        },
+        {
+          id: '2',
+          title: 'Room 2',
+          price: 6000000,
+          owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
+          reviewCount: 0,
+          avgRating: 0,
+        },
+      ]);
       expect(result.meta).toEqual({
         page: 1,
         limit: 10,
@@ -230,8 +316,9 @@ describe('ListingsService', () => {
       const mockListing = {
         id: '1',
         title: 'Room',
-        owner: { id: 'user1', name: 'Owner' },
+        owner: { id: 'user1', name: 'Owner', avatarUrl: null, phone: null },
         reviews: [],
+        _count: { reviews: 0 },
       };
       prismaMock.listing.findUnique.mockResolvedValue(mockListing);
 
@@ -240,19 +327,33 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.findUnique).toHaveBeenCalledWith({
         where: { id: '1' },
         include: {
-          owner: true,
-          reviews: true,
+          address: true,
+          owner: { select: { id: true, name: true, avatarUrl: true, phone: true } },
+          _count: { select: { reviews: true } },
+          reviews: {
+            include: {
+              user: { select: { id: true, name: true, avatarUrl: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       });
-      expect(result).toEqual(mockListing);
+      expect(result).toEqual({
+        id: '1',
+        title: 'Room',
+        owner: { id: 'user1', name: 'Owner', avatarUrl: null, phone: null },
+        reviews: [],
+        reviewCount: 0,
+        avgRating: 0,
+      });
     });
 
-    it('should return null if listing not found', async () => {
+    it('should throw NotFoundException if listing not found', async () => {
       prismaMock.listing.findUnique.mockResolvedValue(null);
 
-      const result = await service.findOne('non-existent');
-
-      expect(result).toBeNull();
+      await expect(service.findOne('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -279,6 +380,7 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: updateDto,
+        include: { address: true },
       });
       expect(result).toEqual(mockListing);
     });
@@ -316,6 +418,7 @@ describe('ListingsService', () => {
       expect(prismaMock.listing.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: partialUpdate,
+        include: { address: true },
       });
     });
   });
@@ -372,6 +475,7 @@ describe('ListingsService', () => {
 
       expect(prismaMock.listing.findMany).toHaveBeenCalledWith({
         where: { ownerId: 'user1' },
+        include: { address: true },
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual(mockListings);
@@ -425,7 +529,25 @@ describe('ListingsService', () => {
       const result = await service.findNearby(10.762622, 106.660172, 5, 10);
 
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      expect(result).toEqual(mockListings);
+      expect(result).toEqual(mockListings.map(l => ({
+        ...l,
+        address: {
+          street: undefined,
+          ward: undefined,
+          district: undefined,
+          city: undefined,
+          province: undefined,
+          lat: l.lat,
+          lng: l.lng,
+        },
+        owner: {
+          id: undefined,
+          name: undefined,
+          avatarUrl: undefined,
+        },
+        reviewCount: 0,
+        avgRating: 0,
+      })));
     });
 
     it('should use default radius and limit', async () => {
@@ -435,8 +557,6 @@ describe('ListingsService', () => {
 
       // Verify that queryRaw was called with the raw query containing defaults
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      const queryTemplate = prismaMock.$queryRaw.mock.calls[0][0];
-      expect(typeof queryTemplate).toBe('object');
     });
 
     it('should handle empty results', async () => {
@@ -470,7 +590,25 @@ describe('ListingsService', () => {
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
       expect(result).toEqual({
         location: mockGeocodeResult,
-        listings: mockListings,
+        listings: mockListings.map(l => ({
+          ...l,
+          address: {
+            street: undefined,
+            ward: undefined,
+            district: undefined,
+            city: undefined,
+            province: undefined,
+            lat: undefined,
+            lng: undefined,
+          },
+          owner: {
+            id: undefined,
+            name: undefined,
+            avatarUrl: undefined,
+          },
+          reviewCount: 0,
+          avgRating: 0,
+        })),
       });
     });
 
