@@ -11,6 +11,7 @@ import { MailModule } from './integrations/mail/mail.module';
 import { MapModule } from './integrations/map/map.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AIModule } from './integrations/ollama/ai.module';
+import { NotificationsModule } from './modules/notification/notifications.module';
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { AIModule } from './integrations/ollama/ai.module';
     UsersModule,
     ListingsModule,
     ReviewsModule,
-    AIModule, // Add AI module for chat functionality 
+    NotificationsModule,
+    AIModule, // Add AI module for chat functionality
   ],
   controllers: [AppController],
   providers: [AppService],

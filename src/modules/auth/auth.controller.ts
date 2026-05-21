@@ -19,8 +19,12 @@ export class AuthController {
 
   @Post('login')
   login(@Body() body: LoginDto) {
-    console.log('🚀 ~ AuthController ~ login ~ body:', body)
     return this.authService.login(body);
+  }
+
+  @Post('refresh')
+  refresh(@Body('refreshToken') token: string) {
+    return this.authService.refresh(token);
   }
 
   @Post('logout')

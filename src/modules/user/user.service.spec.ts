@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -11,6 +12,14 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: PrismaService, useValue: prismaMock },
+        {
+          provide: OpensearchService,
+          useValue: {
+            updateUser: jest.fn().mockResolvedValue(undefined),
+            searchUsers: jest.fn(),
+            indexUser: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -35,10 +44,11 @@ describe('UsersService', () => {
         where: { id: '1' },
         select: {
           id: true,
-          email: true,
-          name: true,
-          avatarUrl: true,
-          createdAt: true,
+        email: true,
+        name: true,
+        phone: true,
+        avatarUrl: true,
+        createdAt: true,
         },
       });
       expect(result).toEqual(mockUser);
@@ -72,6 +82,7 @@ describe('UsersService', () => {
     it('should update user profile', async () => {
       const updateData = {
         name: 'Updated Name',
+        phone: '0901234567',
         avatarUrl: 'https://example.com/new-avatar.jpg',
       };
       const mockUser = {
@@ -91,6 +102,7 @@ describe('UsersService', () => {
           id: true,
           email: true,
           name: true,
+          phone: true,
           avatarUrl: true,
         },
       });
@@ -116,6 +128,7 @@ describe('UsersService', () => {
           id: true,
           email: true,
           name: true,
+          phone: true,
           avatarUrl: true,
         },
       });

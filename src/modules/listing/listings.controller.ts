@@ -28,6 +28,7 @@ import { SaveListingDto } from './dto/save-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 import type { AuthenticatedRequest } from '../../common/types';
 import { CreateListingDto } from './dto/create-listing.dto';
+import { UpdateListingDto } from './dto/update-listing.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Listings')
@@ -37,7 +38,7 @@ export class ListingsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(FilesInterceptor('files'))
+  @UseInterceptors(FilesInterceptor('images'))
   @ApiOperation({ summary: 'Create a new listing with optional image uploads' })
   @ApiConsumes('multipart/form-data')
   create(
@@ -46,6 +47,15 @@ export class ListingsController {
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     return this.service.create(req.user.userId, body, files);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('upload')
+  @UseInterceptors(FilesInterceptor('images'))
+  @ApiOperation({ summary: 'Upload images without creating a listing' })
+  @ApiConsumes('multipart/form-data')
+  async uploadImages(@UploadedFiles() files: Express.Multer.File[]) {
+    return this.service.uploadImages(files);
   }
 
   @Get()
@@ -57,6 +67,12 @@ export class ListingsController {
   @UseGuards(JwtAuthGuard)
   getMy(@Req() req: AuthenticatedRequest) {
     return this.service.getMyListings(req.user.userId);
+  }
+
+  @Get('locations')
+  @ApiOperation({ summary: 'Get unique cities and districts for filters' })
+  getLocations() {
+    return this.service.getLocations();
   }
 
   @UseGuards(JwtAuthGuard)
@@ -74,11 +90,6 @@ export class ListingsController {
       page ?? 1,
       limit ?? 20,
     );
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
   }
 
   @Get('geocode/address')
@@ -126,13 +137,18 @@ export class ListingsController {
     return this.service.searchByAddress(address, radius ?? 5);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
+  @ApiOperation({ summary: 'Update a listing' })
   update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    // @ts-ignore
-    @Body() body,
+    @Body() body: UpdateListingDto,
   ) {
     return this.service.update(req.user.userId, id, body);
   }

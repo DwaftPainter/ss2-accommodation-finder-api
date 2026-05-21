@@ -6,6 +6,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TokenService } from './token.service';
 import { OtpService } from './otp.service';
 import { MailService } from '../../integrations/mail/mail.service';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -73,6 +76,26 @@ describe('AuthService', () => {
             sendMail: jest.fn(),
           },
         },
+        {
+          provide: HttpService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: OpensearchService,
+          useValue: {
+            indexUser: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'auth0.domain' ? 'example.auth0.com' : undefined,
+            ),
+          },
+        },
       ],
     }).compile();
 
@@ -99,6 +122,7 @@ describe('AuthService', () => {
         id: 'user-1',
         email: registerDto.email,
         name: registerDto.name,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
       });
 
       const result = await service.register(registerDto);
@@ -110,14 +134,18 @@ describe('AuthService', () => {
           password: 'hashedpassword',
           name: registerDto.name,
         },
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true, name: true, createdAt: true },
       });
       expect(otpService.generateOtp).toHaveBeenCalledWith(registerDto.email);
       expect(mailService.sendMail).toHaveBeenCalled();
       expect(result).toEqual({
-        user: { id: 'user-1', email: registerDto.email, name: registerDto.name },
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
+        user: {
+          id: 'user-1',
+          email: registerDto.email,
+          name: registerDto.name,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        code: 'AUTH_REGISTERED_VERIFICATION_REQUIRED',
         message: 'Please check your email for the verification code',
       });
     });
@@ -138,7 +166,9 @@ describe('AuthService', () => {
       const error = new Error('Database error');
       prisma.user.create = jest.fn().mockRejectedValue(error);
 
-      await expect(service.register(registerDto)).rejects.toThrow('Database error');
+      await expect(service.register(registerDto)).rejects.toThrow(
+        'Registration failed',
+      );
     });
   });
 
@@ -163,6 +193,8 @@ describe('AuthService', () => {
         user: { id: 'user-1', email: 'test@example.com', name: 'Test User' },
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
+        code: 'AUTH_LOGIN_SUCCESS',
+        message: 'Login successful',
       });
     });
 
@@ -226,6 +258,7 @@ describe('AuthService', () => {
         email: 'test@example.com',
         name: 'Test User',
         emailVerified: false,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
       });
       otpService.verifyOtp = jest.fn().mockResolvedValue(true);
       prisma.user.update = jest.fn().mockResolvedValue({});
@@ -240,8 +273,26 @@ describe('AuthService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { email: 'test@example.com' },
         data: { emailVerified: true },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          emailVerified: true,
+          createdAt: true,
+        },
       });
-      expect(result).toEqual({ message: 'Email verified successfully' });
+      expect(result).toEqual({
+        user: {
+          id: 'user-1',
+          email: 'test@example.com',
+          name: 'Test User',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        code: 'AUTH_EMAIL_VERIFIED',
+        message: 'Email verified successfully',
+      });
     });
 
     it('should throw NotFoundException if user not found', async () => {
@@ -287,7 +338,10 @@ describe('AuthService', () => {
 
       expect(otpService.generateOtp).toHaveBeenCalledWith('test@example.com');
       expect(mailService.sendMail).toHaveBeenCalled();
-      expect(result).toEqual({ message: 'Verification code sent successfully' });
+      expect(result).toEqual({
+        code: 'AUTH_OTP_RESENT',
+        message: 'Verification code sent successfully',
+      });
     });
 
     it('should throw NotFoundException if user not found', async () => {
@@ -314,7 +368,9 @@ describe('AuthService', () => {
         name: 'Test User',
         emailVerified: false,
       });
-      otpService.generateOtp = jest.fn().mockRejectedValue(new Error('rate limit'));
+      otpService.generateOtp = jest
+        .fn()
+        .mockRejectedValue(new Error('wait before requesting'));
 
       await expect(service.resendOtp('test@example.com')).rejects.toThrow(BadRequestException);
     });

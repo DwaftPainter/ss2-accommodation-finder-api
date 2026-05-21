@@ -39,6 +39,7 @@ export interface UserSearchFilters {
 
 export interface ChatSearchFilters {
   chatId?: string;
+  chatIds?: string[];
   senderId?: string;
   listingId?: string;
   dateFrom?: string;
@@ -621,6 +622,8 @@ export class OpensearchService implements OnModuleInit {
 
     if (filters.chatId) {
       filter.push({ term: { chatId: filters.chatId } });
+    } else if (filters.chatIds?.length) {
+      filter.push({ terms: { chatId: filters.chatIds } });
     }
     if (filters.senderId) {
       filter.push({ term: { senderId: filters.senderId } });

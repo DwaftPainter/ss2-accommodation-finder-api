@@ -21,6 +21,7 @@ export const prismaMock = {
   },
   chat: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),

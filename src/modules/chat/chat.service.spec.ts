@@ -3,20 +3,33 @@ import { ChatService } from './chat.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
+import { NotificationsService } from '../notification/notifications.service';
 
 describe('ChatService', () => {
   let service: ChatService;
+  const opensearchMock = {
+    indexMessage: jest.fn(),
+    searchChatMessages: jest.fn(),
+    getChatHistory: jest.fn(),
+  };
+  const notificationsMock = {
+    createForUser: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: OpensearchService, useValue: opensearchMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 
     service = module.get<ChatService>(ChatService);
     jest.clearAllMocks();
+    notificationsMock.createForUser.mockResolvedValue({});
   });
 
   describe('createChat', () => {
@@ -35,18 +48,21 @@ describe('ChatService', () => {
         listing: { id: listingId, title: 'Test Listing', images: [] },
       };
 
-      prismaMock.chat.findUnique.mockResolvedValue(null);
+      prismaMock.chat.findFirst.mockResolvedValue(null);
       prismaMock.chat.create.mockResolvedValue(mockChat);
 
       const result = await service.createChat(userId, otherUserId, listingId);
 
-      expect(prismaMock.chat.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.chat.findFirst).toHaveBeenCalledWith({
         where: {
-          user1Id_user2Id_listingId: {
-            user1Id: userId,
-            user2Id: otherUserId,
-            listingId,
-          },
+          user1Id: userId,
+          user2Id: otherUserId,
+          listingId,
+        },
+        include: {
+          user1: { select: { id: true, name: true, avatarUrl: true } },
+          user2: { select: { id: true, name: true, avatarUrl: true } },
+          listing: { select: { id: true, title: true, images: true } },
         },
       });
       expect(prismaMock.chat.create).toHaveBeenCalled();
@@ -61,11 +77,11 @@ describe('ChatService', () => {
         listingId,
       };
 
-      prismaMock.chat.findUnique.mockResolvedValue(mockChat);
+      prismaMock.chat.findFirst.mockResolvedValue(mockChat);
 
       const result = await service.createChat(userId, otherUserId, listingId);
 
-      expect(prismaMock.chat.findUnique).toHaveBeenCalled();
+      expect(prismaMock.chat.findFirst).toHaveBeenCalled();
       expect(prismaMock.chat.create).not.toHaveBeenCalled();
       expect(result).toEqual(mockChat);
     });
@@ -75,13 +91,13 @@ describe('ChatService', () => {
         id: 'chat-1',
         user1Id: userId,
         user2Id: otherUserId,
-        listingId: '',
+        listingId: null,
         user1: { id: userId, name: 'User 1', avatarUrl: null },
         user2: { id: otherUserId, name: 'User 2', avatarUrl: null },
         listing: false,
       };
 
-      prismaMock.chat.findUnique.mockResolvedValue(null);
+      prismaMock.chat.findFirst.mockResolvedValue(null);
       prismaMock.chat.create.mockResolvedValue(mockChat);
 
       const result = await service.createChat(userId, otherUserId);
@@ -91,7 +107,7 @@ describe('ChatService', () => {
         data: {
           user1Id: userId,
           user2Id: otherUserId,
-          listingId: undefined,
+          listingId: null,
         },
         include: {
           user1: { select: { id: true, name: true, avatarUrl: true } },
@@ -110,18 +126,21 @@ describe('ChatService', () => {
         listingId,
       };
 
-      prismaMock.chat.findUnique.mockResolvedValue(mockChat);
+      prismaMock.chat.findFirst.mockResolvedValue(mockChat);
 
       await service.createChat(userId, otherUserId, listingId);
 
       // Since 'user-1' < 'user-2', the order should remain the same
-      expect(prismaMock.chat.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.chat.findFirst).toHaveBeenCalledWith({
         where: {
-          user1Id_user2Id_listingId: {
-            user1Id: userId,
-            user2Id: otherUserId,
-            listingId,
-          },
+          user1Id: userId,
+          user2Id: otherUserId,
+          listingId,
+        },
+        include: {
+          user1: { select: { id: true, name: true, avatarUrl: true } },
+          user2: { select: { id: true, name: true, avatarUrl: true } },
+          listing: { select: { id: true, title: true, images: true } },
         },
       });
     });
@@ -290,6 +309,7 @@ describe('ChatService', () => {
         id: chatId,
         user1Id: senderId,
         user2Id: 'user-2',
+        listingId: null,
       };
 
       const mockMessage = {
@@ -297,6 +317,7 @@ describe('ChatService', () => {
         chatId,
         senderId,
         content,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
         sender: { id: senderId, name: 'User 1', avatarUrl: null },
       };
 

@@ -53,8 +53,8 @@ describe('AIController', () => {
       const result = await controller.healthCheck();
       expect(result).toEqual({
         status: 'OK',
-        provider: 'openai',
-        model: 'gpt-3.5-turbo'
+        provider: 'ollama',
+        model: 'gpt-oss:120b-cloud'
       });
     });
   });
@@ -66,8 +66,8 @@ describe('AIController', () => {
       const result = await controller.testConnection();
       expect(result).toEqual({
         connected: true,
-        provider: 'openai',
-        model: 'gpt-3.5-turbo'
+        provider: 'ollama',
+        model: 'gpt-oss:120b-cloud'
       });
     });
   });

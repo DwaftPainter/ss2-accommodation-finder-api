@@ -52,6 +52,17 @@ export class ChatController {
     );
   }
 
+  @Post(':chatId/messages')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Send a message to a chat' })
+  async sendMessage(
+    @Req() req: AuthenticatedRequest,
+    @Param('chatId') chatId: string,
+    @Body('content') content: string,
+  ) {
+    return this.chatService.createMessage(chatId, req.user.userId, content);
+  }
+
   @Get('unread/count')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get total unread message count' })
