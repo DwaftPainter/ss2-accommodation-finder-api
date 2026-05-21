@@ -6,6 +6,7 @@ import { OpensearchService } from '../../integrations/opensearch/opensearch.serv
 import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { prismaMock } from '../../../test/mocks/prisma.mock';
+import { ListingStatus, ListingType } from '@prisma/client';
 
 describe('ListingsService', () => {
   let service: ListingsService;
@@ -45,6 +46,7 @@ describe('ListingsService', () => {
   });
 
   describe('create', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
     const createDto = {
       title: 'Phòng trọ Quận 1',
       street: '123 Nguyễn Trãi',
@@ -65,17 +67,38 @@ describe('ListingsService', () => {
       contactPhone: '0901234567',
     };
 
+    const createPersistedListing = (dto: typeof createDto | any) => ({
+      id: '1',
+      ...dto,
+      type: ListingType.ROOM,
+      status: ListingStatus.ACTIVE,
+      createdAt,
+      ownerId: 'user1',
+      address: {
+        street: dto.street,
+        ward: dto.ward,
+        district: dto.district,
+        city: dto.city,
+        province: dto.province,
+        lat: dto.lat,
+        lng: dto.lng,
+      },
+    });
+
     it('should create listing', async () => {
-      const mockListing = {
-        id: '1',
-        ...createDto,
-        ownerId: 'user1',
-      };
+      const mockListing = createPersistedListing(createDto);
       prismaMock.listing.create.mockResolvedValue(mockListing);
 
       const result = await service.create('user1', createDto);
 
-      expect(prismaMock.listing.create).toHaveBeenCalled();
+      expect(prismaMock.listing.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ListingStatus.ACTIVE,
+          }),
+        }),
+      );
+      expect(mockOpensearchService.indexListing).toHaveBeenCalled();
       expect(result).toEqual(mockListing);
     });
 
@@ -93,11 +116,7 @@ describe('ListingsService', () => {
         utilities: [],
         images: ['img.jpg'],
       };
-      const mockListing = {
-        id: '1',
-        ...minimalDto,
-        ownerId: 'user1',
-      };
+      const mockListing = createPersistedListing(minimalDto);
       prismaMock.listing.create.mockResolvedValue(mockListing);
 
       const result = await service.create('user1', minimalDto as any);
@@ -110,12 +129,10 @@ describe('ListingsService', () => {
       const uploadResults = [{ secure_url: 'https://cloudinary.com/test.jpg' }];
       cloudinaryService.uploadFiles.mockResolvedValue(uploadResults as any);
       
-      const mockListing = {
-        id: '1',
+      const mockListing = createPersistedListing({
         ...createDto,
         images: [...createDto.images, 'https://cloudinary.com/test.jpg'],
-        ownerId: 'user1',
-      };
+      });
       prismaMock.listing.create.mockResolvedValue(mockListing);
 
       await service.create('user1', createDto, files);
@@ -299,8 +316,9 @@ describe('ListingsService', () => {
       const mockListing = {
         id: '1',
         title: 'Room',
-        owner: { id: 'user1', name: 'Owner' },
+        owner: { id: 'user1', name: 'Owner', avatarUrl: null, phone: null },
         reviews: [],
+        _count: { reviews: 0 },
       };
       prismaMock.listing.findUnique.mockResolvedValue(mockListing);
 
@@ -310,19 +328,32 @@ describe('ListingsService', () => {
         where: { id: '1' },
         include: {
           address: true,
-          owner: true,
-          reviews: true,
+          owner: { select: { id: true, name: true, avatarUrl: true, phone: true } },
+          _count: { select: { reviews: true } },
+          reviews: {
+            include: {
+              user: { select: { id: true, name: true, avatarUrl: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       });
-      expect(result).toEqual(mockListing);
+      expect(result).toEqual({
+        id: '1',
+        title: 'Room',
+        owner: { id: 'user1', name: 'Owner', avatarUrl: null, phone: null },
+        reviews: [],
+        reviewCount: 0,
+        avgRating: 0,
+      });
     });
 
-    it('should return null if listing not found', async () => {
+    it('should throw NotFoundException if listing not found', async () => {
       prismaMock.listing.findUnique.mockResolvedValue(null);
 
-      const result = await service.findOne('non-existent');
-
-      expect(result).toBeNull();
+      await expect(service.findOne('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

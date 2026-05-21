@@ -3,51 +3,33 @@ import {
   ForbiddenException,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma, ListingStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MapService } from '../../integrations/map/map.service';
-import { OpensearchService, ListingSearchDoc } from '../../integrations/opensearch/opensearch.service';
+import { OpensearchService } from '../../integrations/opensearch/opensearch.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { CloudinaryService } from '../../integrations/cloudinary/cloudinary.service';
+import {
+  averageRating,
+  mapListingWithRating,
+  mapToListingSearchDoc,
+} from './listing.mapper';
+import { listingOwnerInclude, listingSummaryInclude } from './listing.queries';
 
 @Injectable()
 export class ListingsService {
+  private readonly logger = new Logger(ListingsService.name);
+
   constructor(
     private prisma: PrismaService,
     private mapService: MapService,
     private opensearchService: OpensearchService,
     private cloudinaryService: CloudinaryService,
   ) {}
-
-  private mapToListingSearchDoc(listing: any): ListingSearchDoc {
-    return {
-      id: listing.id,
-      ownerId: listing.ownerId,
-      title: listing.title,
-      type: listing.type,
-      price: listing.price,
-      area: listing.area,
-      description: listing.description,
-      utilities: listing.utilities,
-      images: listing.images,
-      status: listing.status,
-      createdAt: listing.createdAt.toISOString(),
-      address: {
-        street: listing.address.street,
-        ward: listing.address.ward,
-        district: listing.address.district,
-        city: listing.address.city,
-        province: listing.address.province,
-        location: {
-          lat: listing.address.lat,
-          lon: listing.address.lng,
-        },
-      },
-    };
-  }
 
   async create(
     userId: string,
@@ -77,20 +59,18 @@ export class ListingsService {
     const listing = await this.prisma.listing.create({
       data: {
         ...listingFields,
+        status: ListingStatus.ACTIVE,
         images: allImages,
         owner: { connect: { id: userId } },
         address: {
           create: { street, ward, district, city, province, lat, lng },
         },
       } satisfies Prisma.ListingCreateInput,
-      include: {
-        address: true,
-        owner: { select: { id: true, name: true, avatarUrl: true } },
-      },
+      include: listingOwnerInclude,
     });
 
     if (listing.status === ListingStatus.ACTIVE) {
-      await this.opensearchService.indexListing(this.mapToListingSearchDoc(listing));
+      await this.opensearchService.indexListing(mapToListingSearchDoc(listing));
     }
 
     return listing;
@@ -136,27 +116,14 @@ export class ListingsService {
           const ids = searchResults.map(r => r.id);
           const data = await this.prisma.listing.findMany({
             where: { id: { in: ids } },
-            include: {
-              address: true,
-              owner: { select: { id: true, name: true, avatarUrl: true } },
-              _count: { select: { reviews: true } },
-              reviews: { select: { rating: true } },
-            },
+            include: listingSummaryInclude,
           });
 
           // Sort back to match OpenSearch order
           const sortedData = ids.map(id => {
             const l = data.find(item => item.id === id);
             if (!l) return null;
-            const { _count, reviews, ...listing } = l;
-            const avgRating = reviews.length > 0
-              ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-              : 0;
-            return {
-              ...listing,
-              reviewCount: _count.reviews,
-              avgRating,
-            };
+            return mapListingWithRating(l);
           }).filter(Boolean);
 
           return {
@@ -166,7 +133,11 @@ export class ListingsService {
         }
       } catch (error) {
         // Fallback to DB if OpenSearch fails
-        console.error('OpenSearch search failed, falling back to DB:', error);
+        this.logger.warn(
+          `OpenSearch search failed, falling back to DB: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     }
 
@@ -231,29 +202,13 @@ export class ListingsService {
         where,
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
-        include: {
-          address: true,
-          owner: { select: { id: true, name: true, avatarUrl: true } },
-          _count: { select: { reviews: true } },
-          reviews: { select: { rating: true } },
-        },
+        include: listingSummaryInclude,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.listing.count({ where }),
     ]);
 
-    const mappedData = data.map((l) => {
-      const { _count, reviews, ...listing } = l;
-      const avgRating =
-        reviews.length > 0
-          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-          : 0;
-      return {
-        ...listing,
-        reviewCount: _count.reviews,
-        avgRating,
-      };
-    });
+    const mappedData = data.map(mapListingWithRating);
 
     return {
       data: mappedData,
@@ -262,14 +217,34 @@ export class ListingsService {
   }
 
   async findOne(id: string) {
-    return this.prisma.listing.findUnique({
+    const listing = await this.prisma.listing.findUnique({
       where: { id },
       include: {
         address: true,
-        owner: true,
-        reviews: true,
+        owner: { select: { id: true, name: true, avatarUrl: true, phone: true } },
+        _count: { select: { reviews: true } },
+        reviews: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    const avgRating = averageRating(listing.reviews);
+
+    const { _count, ...rest } = listing;
+
+    return {
+      ...rest,
+      reviewCount: _count?.reviews ?? 0,
+      avgRating: Number(avgRating.toFixed(1)),
+    };
   }
 
   async update(userId: string, id: string, dto: UpdateListingDto) {
@@ -322,7 +297,7 @@ export class ListingsService {
     });
 
     if (updatedListing.status === ListingStatus.ACTIVE) {
-      await this.opensearchService.indexListing(this.mapToListingSearchDoc(updatedListing));
+      await this.opensearchService.indexListing(mapToListingSearchDoc(updatedListing));
     } else {
       await this.opensearchService.deleteListing(updatedListing.id);
     }
@@ -350,8 +325,39 @@ export class ListingsService {
     });
   }
 
+  async getLocations() {
+    const addresses = await this.prisma.address.findMany({
+      select: { city: true, district: true, ward: true },
+      distinct: ['city', 'district', 'ward'],
+    });
+
+    const locations: Record<string, Record<string, string[]>> = {};
+
+    addresses.forEach((addr) => {
+      if (!locations[addr.city]) {
+        locations[addr.city] = {};
+      }
+      if (!locations[addr.city][addr.district]) {
+        locations[addr.city][addr.district] = [];
+      }
+      if (addr.ward && !locations[addr.city][addr.district].includes(addr.ward)) {
+        locations[addr.city][addr.district].push(addr.ward);
+      }
+    });
+
+    return locations;
+  }
+
   async geocodeAddress(address: string) {
     return this.mapService.geocode({ address });
+  }
+
+  async uploadImages(files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      return [];
+    }
+    const uploadResults = await this.cloudinaryService.uploadFiles(files);
+    return uploadResults.map((result) => result.secure_url);
   }
 
   async findNearby(
@@ -361,11 +367,14 @@ export class ListingsService {
     limit: number = 10,
   ) {
     // Haversine formula — must JOIN Address since coordinates live there now
+    // We also join Review to get real counts and ratings
     const listings = await this.prisma.$queryRaw<any[]>`
       SELECT
         l.*,
         a.street, a.ward, a.district, a.city, a.province, a.lat, a.lng,
         u.name as "ownerName", u."avatarUrl" as "ownerAvatar",
+        COALESCE(r.count, 0) as "reviewCount",
+        COALESCE(r.avg, 0) as "avgRating",
         (2 * 6371 * atan2(
           sqrt(
             pow(sin(radians(a.lat - ${lat}) / 2), 2) +
@@ -383,6 +392,11 @@ export class ListingsService {
       FROM "Listing" l
       JOIN "Address" a ON a.id = l."addressId"
       JOIN "User" u ON u.id = l."ownerId"
+      LEFT JOIN (
+        SELECT "listingId", COUNT(*)::int as count, AVG(rating)::float as avg
+        FROM "Review"
+        GROUP BY "listingId"
+      ) r ON r."listingId" = l.id
       WHERE l.status = 'ACTIVE'
         AND (2 * 6371 * atan2(
           sqrt(
@@ -418,8 +432,8 @@ export class ListingsService {
         name: l.ownerName,
         avatarUrl: l.ownerAvatar,
       },
-      reviewCount: 0,
-      avgRating: 0,
+      reviewCount: l.reviewCount ?? 0,
+      avgRating: l.avgRating ?? 0,
     }));
   }
 
@@ -482,9 +496,7 @@ export class ListingsService {
           listing: {
             include: {
               address: true,
-              owner: { select: { id: true, name: true, avatarUrl: true } },
-              _count: { select: { reviews: true } },
-              reviews: { select: { rating: true } },
+              ...listingSummaryInclude,
             },
           },
         },
@@ -497,16 +509,8 @@ export class ListingsService {
 
     return {
       data: data.map((item) => {
-        const { _count, reviews, ...listing } = item.listing;
-        const avgRating =
-          reviews.length > 0
-            ? reviews.reduce((sum: number, r) => sum + r.rating, 0) /
-              reviews.length
-            : 0;
         return {
-          ...listing,
-          reviewCount: _count.reviews,
-          avgRating,
+          ...mapListingWithRating(item.listing),
           savedAt: item.createdAt.toISOString(),
         };
       }),

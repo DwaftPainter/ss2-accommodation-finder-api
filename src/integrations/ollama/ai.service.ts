@@ -7,15 +7,11 @@ import { ListingsService } from 'src/modules/listing/listings.service';
 import { QueryListingDto } from 'src/modules/listing/dto/query-listing.dto';
 import { OpensearchService } from '../opensearch/opensearch.service';
 
-const ollama = new Ollama({
-  host: 'https://ollama.com',
-  headers: { Authorization: 'Bearer ' + "1c9058bfa1fd4588bd7274db967b58de.kn-WPpfEorEY5R3ouCVeBj6o" },
-});
-
 @Injectable()
 export class AIService {
   private readonly logger = new Logger(AIService.name);
   private readonly model: string;
+  private readonly ollama: Ollama;
 
   constructor(
     private readonly configService: ConfigService,
@@ -24,12 +20,17 @@ export class AIService {
   ) {
     this.model =
       this.configService.get<string>('ollama.model') || 'gpt-oss:120b-cloud';
+    const apiKey = this.configService.get<string>('ollama.apiKey');
+    this.ollama = new Ollama({
+      host: this.configService.get<string>('ollama.host') || 'https://ollama.com',
+      ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
+    });
     this.logger.log(`AI service initialized with Ollama, model: ${this.model}`);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const list = await ollama.list();
+      const list = await this.ollama.list();
       this.logger.log(
         `Ollama connected, models available: ${list.models.length}`,
       );
@@ -158,7 +159,7 @@ Response:`;
 
   private async callAI(prompt: string): Promise<string> {
     try {
-      const response = await ollama.chat({
+      const response = await this.ollama.chat({
         model: this.model,
         messages: [
           {

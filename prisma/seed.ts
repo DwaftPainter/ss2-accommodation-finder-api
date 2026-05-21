@@ -24,6 +24,7 @@ const prisma = new PrismaClient({
 
 const USER_1_ID = 'cmo2b8t4j0001hiskk227mr7r'; // Landlord
 const USER_2_ID = 'cmo37llqa0000xkskwbyholl4'; // Tenant
+const SEED_PASSWORD = 'congM456';
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -48,7 +49,7 @@ async function main() {
   console.log('🧹 Cleaned existing data');
 
   // ─── Users ─────────────────────────────────────────────────────────────────
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const hashedPassword = await bcrypt.hash(SEED_PASSWORD, 10);
 
   const landlord = await prisma.user.create({
     data: {
@@ -646,7 +647,7 @@ async function main() {
   );
   console.log(`👤 Tenant    | ID: ${USER_2_ID} | email: tenant@accomfinder.vn`);
   console.log(`👤 Admin     | ID: ${admin.id}   | email: admin@accomfinder.vn`);
-  console.log(`🔑 Password  | password123 (all users)`);
+  console.log(`🔑 Password  | ${SEED_PASSWORD} (all users)`);
   console.log('─'.repeat(50));
 }
 

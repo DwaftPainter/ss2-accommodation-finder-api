@@ -7,6 +7,7 @@ import { WsJwtGuard } from './guards/ws-jwt.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { OpensearchModule } from '../../integrations/opensearch/opensearch.module';
+import { NotificationsModule } from '../notification/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { OpensearchModule } from '../../integrations/opensearch/opensearch.modul
       }),
     }),
     OpensearchModule,
+    NotificationsModule,
   ],
   controllers: [ChatController],
   providers: [ChatGateway, ChatService, WsJwtGuard, PrismaService],

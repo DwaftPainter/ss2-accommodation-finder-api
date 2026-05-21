@@ -11,6 +11,7 @@ describe('PrismaService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockConfigService.get.mockReturnValue('postgresql://localhost:5432/test');
   });
 
   describe('constructor', () => {

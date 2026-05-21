@@ -16,7 +16,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       (() => {
         throw new Error('JWT_SECRET_KEY is not defined');
       })();
-    console.log('JWT Strategy secret:', secret); // ← add this
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -25,7 +24,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    console.log('Incoming JWT payload:', payload);
     if (!payload?.sub) throw new UnauthorizedException();
     return { userId: payload.sub };
   }

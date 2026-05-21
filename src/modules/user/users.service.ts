@@ -18,6 +18,7 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        phone: true,
         avatarUrl: true,
         createdAt: true,
       },
@@ -32,13 +33,14 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        phone: true,
         avatarUrl: true,
       },
     });
 
     // Update OpenSearch index (fire and forget)
     this.opensearch
-      .updateUser(userId, { name: updated.name })
+      .updateUser(userId, { name: updated.name, phone: updated.phone })
       .catch((err) =>
         this.logger.warn(`OpenSearch update failed: ${err.message}`),
       );

@@ -10,6 +10,11 @@ export default () => ({
     utcOffset: parseInt(process.env.UTC_OFFSET ?? '0', 10),
   },
 
+  cors: {
+    origin: process.env.CORS_ORIGIN ?? '*',
+    credentials: process.env.CORS_CREDENTIALS === 'true',
+  },
+
   mail: {
     host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT ?? '465', 10),
@@ -24,7 +29,12 @@ export default () => ({
     expiresIn: '7d',
   },
 
+  auth0: {
+    domain: process.env.AUTH0_DOMAIN,
+  },
+
   ollama: {
+    host: process.env.OLLAMA_HOST ?? 'https://ollama.com',
     apiKey: process.env.OLLAMA_API_KEY,
     model: process.env.OLLAMA_MODEL ?? 'gpt-oss:120b-cloud',
   },
