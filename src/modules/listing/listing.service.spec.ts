@@ -41,8 +41,11 @@ describe('ListingsService', () => {
 
     service = module.get<ListingsService>(ListingsService);
     mapService = module.get(MapService) as jest.Mocked<MapService>;
-    cloudinaryService = module.get(CloudinaryService) as jest.Mocked<CloudinaryService>;
+    cloudinaryService = module.get(
+      CloudinaryService,
+    ) as jest.Mocked<CloudinaryService>;
     jest.clearAllMocks();
+    prismaMock.review.groupBy.mockResolvedValue([]);
   });
 
   describe('create', () => {
@@ -125,10 +128,12 @@ describe('ListingsService', () => {
     });
 
     it('should upload files to cloudinary when provided', async () => {
-      const files = [{ buffer: Buffer.from('test'), originalname: 'test.jpg' }] as any;
+      const files = [
+        { buffer: Buffer.from('test'), originalname: 'test.jpg' },
+      ] as any;
       const uploadResults = [{ secure_url: 'https://cloudinary.com/test.jpg' }];
       cloudinaryService.uploadFiles.mockResolvedValue(uploadResults as any);
-      
+
       const mockListing = createPersistedListing({
         ...createDto,
         images: [...createDto.images, 'https://cloudinary.com/test.jpg'],
@@ -155,16 +160,12 @@ describe('ListingsService', () => {
         title: 'Room 1',
         price: 5000000,
         owner: { id: 'user1', name: 'Owner', avatarUrl: null },
-        reviews: [],
-        _count: { reviews: 0 },
       },
       {
         id: '2',
         title: 'Room 2',
         price: 6000000,
         owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
-        reviews: [],
-        _count: { reviews: 0 },
       },
     ];
 
@@ -183,10 +184,14 @@ describe('ListingsService', () => {
           owner: {
             select: { id: true, name: true, avatarUrl: true },
           },
-          _count: { select: { reviews: true } },
-          reviews: { select: { rating: true } },
         },
         orderBy: { createdAt: 'desc' },
+      });
+      expect(prismaMock.review.groupBy).toHaveBeenCalledWith({
+        by: ['listingId'],
+        where: { listingId: { in: ['1', '2'] } },
+        _avg: { rating: true },
+        _count: { _all: true },
       });
       expect(result.data).toEqual([
         {
@@ -328,7 +333,9 @@ describe('ListingsService', () => {
         where: { id: '1' },
         include: {
           address: true,
-          owner: { select: { id: true, name: true, avatarUrl: true, phone: true } },
+          owner: {
+            select: { id: true, name: true, avatarUrl: true, phone: true },
+          },
           _count: { select: { reviews: true } },
           reviews: {
             include: {
@@ -388,9 +395,9 @@ describe('ListingsService', () => {
     it('should throw ForbiddenException if not owner', async () => {
       prismaMock.listing.findUnique.mockResolvedValue({ ownerId: 'user2' });
 
-      await expect(
-        service.update('user1', '1', updateDto),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.update('user1', '1', updateDto)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       expect(prismaMock.listing.update).not.toHaveBeenCalled();
     });
@@ -398,9 +405,9 @@ describe('ListingsService', () => {
     it('should throw ForbiddenException if listing not found', async () => {
       prismaMock.listing.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.update('user1', '1', updateDto),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.update('user1', '1', updateDto)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should update listing with partial data', async () => {
@@ -521,7 +528,7 @@ describe('ListingsService', () => {
   describe('findNearby', () => {
     it('should find listings near coordinates', async () => {
       const mockListings = [
-        { id: '1', title: 'Room 1', lat: 10.762, lng: 106.660, distance: 0.1 },
+        { id: '1', title: 'Room 1', lat: 10.762, lng: 106.66, distance: 0.1 },
         { id: '2', title: 'Room 2', lat: 10.763, lng: 106.661, distance: 0.5 },
       ];
       prismaMock.$queryRaw.mockResolvedValue(mockListings);
@@ -529,25 +536,27 @@ describe('ListingsService', () => {
       const result = await service.findNearby(10.762622, 106.660172, 5, 10);
 
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      expect(result).toEqual(mockListings.map(l => ({
-        ...l,
-        address: {
-          street: undefined,
-          ward: undefined,
-          district: undefined,
-          city: undefined,
-          province: undefined,
-          lat: l.lat,
-          lng: l.lng,
-        },
-        owner: {
-          id: undefined,
-          name: undefined,
-          avatarUrl: undefined,
-        },
-        reviewCount: 0,
-        avgRating: 0,
-      })));
+      expect(result).toEqual(
+        mockListings.map((l) => ({
+          ...l,
+          address: {
+            street: undefined,
+            ward: undefined,
+            district: undefined,
+            city: undefined,
+            province: undefined,
+            lat: l.lat,
+            lng: l.lng,
+          },
+          owner: {
+            id: undefined,
+            name: undefined,
+            avatarUrl: undefined,
+          },
+          reviewCount: 0,
+          avgRating: 0,
+        })),
+      );
     });
 
     it('should use default radius and limit', async () => {
@@ -586,11 +595,13 @@ describe('ListingsService', () => {
 
       const result = await service.searchByAddress('District 1', 5);
 
-      expect(mapService.geocode).toHaveBeenCalledWith({ address: 'District 1' });
+      expect(mapService.geocode).toHaveBeenCalledWith({
+        address: 'District 1',
+      });
       expect(prismaMock.$queryRaw).toHaveBeenCalled();
       expect(result).toEqual({
         location: mockGeocodeResult,
-        listings: mockListings.map(l => ({
+        listings: mockListings.map((l) => ({
           ...l,
           address: {
             street: undefined,

@@ -26,10 +26,12 @@ import { ListingsService } from './listings.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { SaveListingDto } from './dto/save-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
+import { SearchListingDto } from './dto/search-listing.dto';
 import type { AuthenticatedRequest } from '../../common/types';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { CuidValidationPipe } from '../../common/pipes/cuid-validation.pipe';
 
 @ApiTags('Listings')
 @Controller('listings')
@@ -61,6 +63,12 @@ export class ListingsController {
   @Get()
   findAll(@Query() query: QueryListingDto) {
     return this.service.findAll(query);
+  }
+
+  @Post('search')
+  @ApiOperation({ summary: 'Search listings with a structured filter body' })
+  searchListings(@Body() body: SearchListingDto) {
+    return this.service.findAll(body);
   }
 
   @Get('me')
@@ -137,28 +145,6 @@ export class ListingsController {
     return this.service.searchByAddress(address, radius ?? 5);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id')
-  @ApiOperation({ summary: 'Update a listing' })
-  update(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-    @Body() body: UpdateListingDto,
-  ) {
-    return this.service.update(req.user.userId, id, body);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Delete(':id')
-  remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.remove(req.user.userId, id);
-  }
-
   @UseGuards(JwtAuthGuard)
   @Post('saved')
   @ApiOperation({ summary: 'Save a listing to user favorites' })
@@ -187,5 +173,30 @@ export class ListingsController {
     @Param('listingId') listingId: string,
   ) {
     return this.service.isListingSaved(req.user.userId, listingId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id', CuidValidationPipe) id: string) {
+    return this.service.findOne(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a listing' })
+  update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', CuidValidationPipe) id: string,
+    @Body() body: UpdateListingDto,
+  ) {
+    return this.service.update(req.user.userId, id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', CuidValidationPipe) id: string,
+  ) {
+    return this.service.remove(req.user.userId, id);
   }
 }
