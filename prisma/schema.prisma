@@ -131,7 +131,6 @@ model UserSession {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([token])
 }
 
 model Address {
@@ -184,11 +183,10 @@ model Listing {
   chats        Chat[]
 
   @@index([ownerId])
-  @@index([status])
   @@index([status, expiredAt])
-  @@index([price])
-  @@index([area])
-  @@index([type])
+  @@index([status, createdAt])
+  @@index([status, price])
+  @@index([status, area])
 }
 
 model ListingHistory {

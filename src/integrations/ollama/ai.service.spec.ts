@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { AIService } from './ai.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ListingsService } from '../../modules/listing/listings.service';
 import { OpensearchService } from '../opensearch/opensearch.service';
 
@@ -34,6 +35,11 @@ const mockOpensearchService = {
   searchUserChats: jest.fn().mockResolvedValue({ messages: [], total: 0 }),
 };
 
+const mockCache = {
+  get: jest.fn(),
+  set: jest.fn(),
+};
+
 describe('AIService', () => {
   let service: AIService;
 
@@ -45,6 +51,7 @@ describe('AIService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: ListingsService, useValue: mockListingsService },
         { provide: OpensearchService, useValue: mockOpensearchService },
+        { provide: CACHE_MANAGER, useValue: mockCache },
       ],
     }).compile();
 
@@ -72,7 +79,9 @@ describe('AIService', () => {
     });
 
     it('should return false when AI service is unreachable', async () => {
-      (service as any).ollama.list.mockRejectedValue(new Error('Connection failed'));
+      (service as any).ollama.list.mockRejectedValue(
+        new Error('Connection failed'),
+      );
 
       const result = await service.testConnection();
       expect(result).toBe(false);

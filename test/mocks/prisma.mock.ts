@@ -15,6 +15,7 @@ export const prismaMock = {
   review: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    groupBy: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
