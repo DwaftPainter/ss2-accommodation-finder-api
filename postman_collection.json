@@ -1,0 +1,802 @@
+{
+  "info": {
+    "name": "Accommodation Finder API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health - Check API",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"123456\",\n  \"name\": \"Nguyen Van A\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"123456\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Refresh Token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "refresh"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/logout",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "logout"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Logout All",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/logout-all",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "logout-all"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Verify Email",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/verify-email",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "verify-email"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Resend OTP",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user@example.com\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/resend-otp",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "resend-otp"]
+        }
+      }
+    },
+    {
+      "name": "Auth - Google Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"google-id-token\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/google",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "google"]
+        }
+      }
+    },
+    {
+      "name": "Users - Get Me",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "users", "me"]
+        }
+      }
+    },
+    {
+      "name": "Users - Update Me",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Nguyen Van A\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\",\n  \"phone\": \"+84901234567\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "users", "me"]
+        }
+      }
+    },
+    {
+      "name": "Users - Search",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/search?q=user&role=USER&status=ACTIVE&emailVerified=true&page=1&limit=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "users", "search"],
+          "query": [
+            { "key": "q", "value": "user" },
+            { "key": "role", "value": "USER" },
+            { "key": "status", "value": "ACTIVE" },
+            { "key": "emailVerified", "value": "true" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listings - Create",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "title", "value": "Phòng trọ gần trường", "type": "text" },
+            { "key": "type", "value": "ROOM", "type": "text" },
+            { "key": "street", "value": "123 Nguyễn Trãi", "type": "text" },
+            { "key": "ward", "value": "Phường 2", "type": "text" },
+            { "key": "district", "value": "Quận 5", "type": "text" },
+            { "key": "city", "value": "Hồ Chí Minh", "type": "text" },
+            { "key": "province", "value": "Hồ Chí Minh", "type": "text" },
+            { "key": "lat", "value": "10.762622", "type": "text" },
+            { "key": "lng", "value": "106.660172", "type": "text" },
+            { "key": "price", "value": "3500000", "type": "text" },
+            { "key": "area", "value": "25", "type": "text" },
+            { "key": "electricityFee", "value": "4000", "type": "text" },
+            { "key": "waterFee", "value": "100000", "type": "text" },
+            { "key": "description", "value": "Phòng sạch sẽ, an ninh tốt", "type": "text" },
+            { "key": "utilities", "value": "wifi", "type": "text" },
+            { "key": "utilities", "value": "parking", "type": "text" },
+            { "key": "contactName", "value": "Nguyen Van A", "type": "text" },
+            { "key": "contactPhone", "value": "+84901234567", "type": "text" },
+            { "key": "images", "type": "file", "src": [] }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Upload Images",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "body": {
+          "mode": "formdata",
+          "formdata": [{ "key": "images", "type": "file", "src": [] }]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/upload",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "upload"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Get All",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings?search=phong&district=Quan 5&ward=Phuong 2&minPrice=1000000&maxPrice=5000000&minArea=15&maxArea=40&utilities=wifi,parking&page=1&limit=30",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings"],
+          "query": [
+            { "key": "search", "value": "phong" },
+            { "key": "district", "value": "Quan 5" },
+            { "key": "ward", "value": "Phuong 2" },
+            { "key": "minPrice", "value": "1000000" },
+            { "key": "maxPrice", "value": "5000000" },
+            { "key": "minArea", "value": "15" },
+            { "key": "maxArea", "value": "40" },
+            { "key": "utilities", "value": "wifi,parking" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "30" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listings - Search",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"search\": \"phong\",\n  \"district\": \"Quan 5\",\n  \"ward\": \"Phuong 2\",\n  \"minPrice\": 1000000,\n  \"maxPrice\": 5000000,\n  \"minArea\": 15,\n  \"maxArea\": 40,\n  \"utilities\": [\"wifi\", \"parking\"],\n  \"page\": 1,\n  \"limit\": 10\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/search",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "search"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Get My Listings",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "me"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Get Locations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/locations",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "locations"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Get Saved",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/saved?page=1&limit=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "saved"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listings - Geocode Address",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/geocode/address?address=123 Nguyen Trai, Ho Chi Minh City",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "geocode", "address"],
+          "query": [{ "key": "address", "value": "123 Nguyen Trai, Ho Chi Minh City" }]
+        }
+      }
+    },
+    {
+      "name": "Listings - Search Nearby",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/search/nearby?lat=10.762622&lng=106.660172&radius=5",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "search", "nearby"],
+          "query": [
+            { "key": "lat", "value": "10.762622" },
+            { "key": "lng", "value": "106.660172" },
+            { "key": "radius", "value": "5" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listings - Search By Address",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/search/by-address?address=123 Nguyen Trai, Ho Chi Minh City&radius=5",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "search", "by-address"],
+          "query": [
+            { "key": "address", "value": "123 Nguyen Trai, Ho Chi Minh City" },
+            { "key": "radius", "value": "5" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listings - Save Listing",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"listingId\": \"{{listingId}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/saved",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "saved"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Unsave Listing",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/saved/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "saved", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Check Saved",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/saved/check/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "saved", "check", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Get By ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Update",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Phòng trọ đã cập nhật\",\n  \"price\": 4000000,\n  \"area\": 28,\n  \"description\": \"Cập nhật thông tin phòng\",\n  \"utilities\": [\"wifi\", \"parking\", \"air_conditioner\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Listings - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Reviews - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"rating\": 5,\n  \"comment\": \"Phòng tốt, chủ nhà thân thiện\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/reviews",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "reviews"]
+        }
+      }
+    },
+    {
+      "name": "Reviews - Get By Listing",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/reviews/listing/{{listingId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "reviews", "listing", "{{listingId}}"]
+        }
+      }
+    },
+    {
+      "name": "Reviews - Update",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Cập nhật đánh giá\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/reviews/{{reviewId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "reviews", "{{reviewId}}"]
+        }
+      }
+    },
+    {
+      "name": "Reviews - Delete",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/reviews/{{reviewId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "reviews", "{{reviewId}}"]
+        }
+      }
+    },
+    {
+      "name": "Chats - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{otherUserId}}\",\n  \"listingId\": \"{{listingId}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/chats",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats"]
+        }
+      }
+    },
+    {
+      "name": "Chats - Get User Chats",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/chats",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats"]
+        }
+      }
+    },
+    {
+      "name": "Chats - Get Messages",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/chats/{{chatId}}/messages?skip=0&take=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats", "{{chatId}}", "messages"],
+          "query": [
+            { "key": "skip", "value": "0" },
+            { "key": "take", "value": "20" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Chats - Send Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"Xin chào, phòng này còn trống không?\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/chats/{{chatId}}/messages",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats", "{{chatId}}", "messages"]
+        }
+      }
+    },
+    {
+      "name": "Chats - Unread Count",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/chats/unread/count",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats", "unread", "count"]
+        }
+      }
+    },
+    {
+      "name": "Chats - Search Messages",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/chats/search?q=phong&chatId={{chatId}}&page=1&limit=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats", "search"],
+          "query": [
+            { "key": "q", "value": "phong" },
+            { "key": "chatId", "value": "{{chatId}}" },
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Chats - Get History",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/chats/{{chatId}}/history?page=1&limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "chats", "{{chatId}}", "history"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "50" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Notifications - Get All",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications?page=1&limit=20&unreadOnly=false",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "notifications"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" },
+            { "key": "unreadOnly", "value": "false" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Notifications - Unread Count",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications/unread-count",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "notifications", "unread-count"]
+        }
+      }
+    },
+    {
+      "name": "Notifications - Mark All As Read",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications/read-all",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "notifications", "read-all"]
+        }
+      }
+    },
+    {
+      "name": "Notifications - Mark One As Read",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "notifications", "{{notificationId}}", "read"]
+        }
+      }
+    },
+    {
+      "name": "Map - Geocode",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/map/geocode?address=123 Main Street, Ho Chi Minh City",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "map", "geocode"],
+          "query": [{ "key": "address", "value": "123 Main Street, Ho Chi Minh City" }]
+        }
+      }
+    },
+    {
+      "name": "Map - Reverse Geocode",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/map/reverse?lat=10.762622&lng=106.660172",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "map", "reverse"],
+          "query": [
+            { "key": "lat", "value": "10.762622" },
+            { "key": "lng", "value": "106.660172" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Map - Search Locations",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/map/search?query=District 1 Ho Chi Minh&limit=5",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "map", "search"],
+          "query": [
+            { "key": "query", "value": "District 1 Ho Chi Minh" },
+            { "key": "limit", "value": "5" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "AI Chat - Send Message",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"content\": \"Tìm phòng trọ giá dưới 4 triệu gần Quận 5\",\n  \"role\": \"user\",\n  \"sessionId\": \"session-001\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai-chat/message",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai-chat", "message"]
+        }
+      }
+    },
+    {
+      "name": "AI Chat - Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai-chat/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai-chat", "health"]
+        }
+      }
+    },
+    {
+      "name": "AI Chat - Test Connection",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai-chat/test-connection",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai-chat", "test-connection"]
+        }
+      }
+    },
+    {
+      "name": "OpenSearch - Health",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/opensearch/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "opensearch", "health"]
+        }
+      }
+    }
+  ]
+}
