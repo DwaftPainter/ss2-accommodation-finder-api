@@ -1,138 +1,199 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Accommodation Finder API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Overview
+Accommodation Finder API is a NestJS backend for an accommodation listing platform. It handles authentication, user profiles, accommodation listings, saved listings, reviews, notifications, chat, search and filtering, geocoding, OpenSearch indexing, and AI-assisted accommodation queries.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
+- NestJS
+- TypeScript
+- Prisma
+- PostgreSQL
+- OpenSearch
+- Upstash Redis
+- Socket.IO
+- Swagger / OpenAPI
+- Cloudinary
+- Nodemailer / SMTP
+- OpenStreetMap Nominatim
+- Ollama
+- Docker
 
-## Description
+## Features
+- JWT authentication with register, login, refresh, logout, email verification OTP, and Google login endpoints
+- User profile management and user search
+- Accommodation listing CRUD, image uploads, saved listings, search, filtering, nearby search, and address-based search
+- Review creation, update, delete, and review notifications
+- Notification listing and read-state management
+- REST chat endpoints plus a Socket.IO chat gateway
+- OpenSearch indexing and search for listings, users, and chat messages
+- PostgreSQL data access through Prisma
+- Seed data generation for listings and related records
+- Map geocoding and reverse geocoding through OpenStreetMap Nominatim
+- Mail delivery for verification and notification flows
+- Ollama-based AI chat endpoint
+- Docker-based application runtime
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository for an accommodation finder application with AI-powered chat capabilities.
+## Project Structure
+```text
+src/
+  app.module.ts
+  main.ts
+  common/
+    bootstrap/
+    filters/
+    pipes/
+    types/
+  configs/
+  integrations/
+    cloudinary/
+    mail/
+    map/
+    ollama/
+    opensearch/
+  modules/
+    auth/
+    chat/
+    listing/
+    notification/
+    review/
+    user/
+  prisma/
+  redis/
+prisma/
+  migrations/
+  schema.prisma
+  seed.ts
+test/
+  app.e2e-spec.ts
+  jest-e2e.json
+Dockerfile
+entrypoint.sh
+package.json
+README.md
+```
 
-## Project setup
+## Environment Variables
+Use placeholders only. Do not commit real secrets.
+
+```env
+DATABASE_URL="postgresql://user:password@host:5432/database"
+JWT_SECRET_KEY="your_jwt_secret_key"
+PORT=3000
+NODE_ENV="development"
+UTC_OFFSET=0
+CORS_ORIGIN="http://localhost:5173"
+CORS_CREDENTIALS="false"
+
+UPSTASH_REDIS_REST_URL="https://example.com"
+UPSTASH_REDIS_REST_TOKEN="your_upstash_token"
+
+SMTP_HOST="smtp.example.com"
+SMTP_PORT=465
+SMTP_USER="your_email@example.com"
+SMTP_PASS="your_app_password"
+SMTP_SECURE="true"
+SMTP_FROM="noreply@example.com"
+
+FRONTEND_URL="http://localhost:5173"
+AUTH0_DOMAIN="your-auth0-domain"
+
+OPENSEARCH_NODE="http://localhost:9200"
+OPENSEARCH_USERNAME="admin"
+OPENSEARCH_PASSWORD="your_opensearch_password"
+OPENSEARCH_SSL="false"
+
+CLOUDINARY_CLOUD_NAME="your_cloud_name"
+CLOUDINARY_API_KEY="your_cloudinary_api_key"
+CLOUDINARY_API_SECRET="your_cloudinary_api_secret"
+
+OLLAMA_HOST="https://ollama.com"
+OLLAMA_API_KEY="your_ollama_api_key"
+OLLAMA_MODEL="gpt-oss:120b-cloud"
+
+PEXELS_API_KEY="your_pexels_api_key"
+```
+
+Note: `src/integrations/ollama` uses the `OLLAMA_*` variables. The existing `.env.example` also contains `AI_PROVIDER` and `OPENAI_API_KEY`, but the current implementation is wired to Ollama.
+
+## Installation
+```bash
+npm install
+```
+
+## Database Setup
+```bash
+npx prisma generate
+npx prisma migrate dev
+npx prisma db seed
+```
+
+`npm install` also runs `prisma generate` through the `postinstall` script.
+
+## Running the App
+```bash
+npm run start:dev
+npm run start
+npm run start:prod
+```
+
+## Running Tests
+```bash
+npm run test
+npm run test:watch
+npm run test:cov
+```
+
+## Docker Usage
+The repository includes a `Dockerfile` and `entrypoint.sh`, but no `docker-compose.yml`.
 
 ```bash
-$ npm install
+docker build -t accommodation-finder-api .
+docker run --rm -p 3000:3000 --env-file .env accommodation-finder-api
 ```
 
-## AI Chat Service
+## OpenSearch Setup
+OpenSearch is used for indexing and search across listings, users, and chat messages. It should stay private on the same host as the backend.
 
-This application includes an AI-powered chat service that helps users find accommodation using cloud-based Large Language Models (currently configured for OpenAI).
-
-### Features
-
-- Natural language processing for accommodation queries
-- Integration with listing data to provide contextual responses
-- Price range and utility filtering based on user requests
-- REST API endpoints for chat interactions
-
-### Endpoints
-
-- `POST /ai-chat/message` - Send a message to the AI chatbot
-- `GET /ai-chat/health` - Health check for the AI service
-- `GET /ai-chat/test-connection` - Test connection to the AI provider
-
-### Setup
-
-1. Obtain an API key from your preferred AI provider (OpenAI, Anthropic, etc.)
-2. Configure environment variables in `.env`:
-   ```
-   AI_PROVIDER=openai
-   OPENAI_API_KEY=your_openai_api_key_here
-   AI_MODEL=gpt-3.5-turbo
-   ```
-
-### Usage
-
-Send a POST request to `/ai-chat/message` with a JSON body:
-
-```json
-{
-  "content": "I'm looking for a furnished apartment with wifi under £1200",
-  "role": "user"
-}
+```text
+Frontend
+  ↓
+Backend API
+  ↓
+OpenSearch private on localhost:9200
 ```
 
-The AI will respond with relevant suggestions based on available listings.
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
+- The backend reads OpenSearch settings from environment variables.
+- The OpenSearch API should not be exposed publicly.
+- If you need OpenSearch Dashboards, expose them separately through Nginx with HTTPS and Basic Auth.
+- The service falls back to PostgreSQL when OpenSearch is unavailable in parts of the application.
 
 ## Deployment
+For a DigitalOcean Droplet deployment:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+- Run the backend on the Droplet.
+- Run OpenSearch on the same Droplet.
+- Connect the backend to OpenSearch through `localhost` when both run on the host network.
+- Use `host.docker.internal` or an equivalent host alias if the backend runs in Docker and OpenSearch stays on the host.
+- Expose the backend domain through Nginx.
+- Keep port `9200` private and do not expose OpenSearch publicly.
+- Apply database migrations with `npx prisma migrate deploy` before switching traffic.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## API Documentation
+Swagger/OpenAPI is available at `/api/docs`.
 
+## Useful Commands
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run build
+npm run start:dev
+npm run test
+npm run lint
+npm run format
+npx prisma migrate dev
+npx prisma db seed
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Notes for Developers
+- Keep `.env` out of Git.
+- Do not expose OpenSearch publicly.
+- Update seed data carefully; it fetches images from Pexels when `PEXELS_API_KEY` is set and falls back to placeholder image URLs otherwise.
+- Run `npm run lint` and `npm run build` before deployment.
