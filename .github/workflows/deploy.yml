@@ -18,7 +18,7 @@ jobs:
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
             cd /opt/accommodation-backend/ss2-accommodation-finder-api
-             git pull origin main
-             docker compose down
-             docker compose up -d --build
-             docker image prune -f
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
+            docker image prune -f
