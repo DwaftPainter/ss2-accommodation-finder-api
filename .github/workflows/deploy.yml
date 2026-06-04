@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check secrets
+        run: |
+          echo "DROPLET_HOST exists: ${{ secrets.DROPLET_HOST != '' }}"
+          echo "DROPLET_USER exists: ${{ secrets.DROPLET_USER != '' }}"
+          echo "DROPLET_SSH_KEY exists: ${{ secrets.DROPLET_SSH_KEY != '' }}"
+
       - name: Deploy to DigitalOcean Droplet
         uses: appleboy/ssh-action@v1.0.3
         with:
