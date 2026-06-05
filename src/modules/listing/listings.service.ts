@@ -85,6 +85,8 @@ export class ListingsService {
   async findAll(query: QueryListingDto | SearchListingDto) {
     const {
       search,
+      province,
+      city,
       district,
       ward,
       minPrice,
@@ -95,6 +97,8 @@ export class ListingsService {
       page = 1,
       limit = 10,
     } = query;
+    const provinceTerms = this.locationTerms(province);
+    const wardTerms = this.locationTerms(ward);
 
     // Try OpenSearch first if there's a search term
     if (search) {
@@ -103,7 +107,10 @@ export class ListingsService {
           await this.opensearchService.searchListings(
             search,
             {
+              province: provinceTerms.length > 0 ? provinceTerms : undefined,
+              city,
               district,
+              ward: wardTerms.length > 0 ? wardTerms : undefined,
               minPrice: minPrice ? Number(minPrice) : undefined,
               maxPrice: maxPrice ? Number(maxPrice) : undefined,
               minArea: minArea ? Number(minArea) : undefined,
@@ -180,10 +187,12 @@ export class ListingsService {
       });
     }
 
-    if (district || ward) {
+    if (province || city || district || ward) {
       where.address = {
+        ...(provinceTerms.length > 0 && { province: { in: provinceTerms } }),
+        ...(city && { city }),
         ...(district && { district }),
-        ...(ward && { ward }),
+        ...(wardTerms.length > 0 && { ward: { in: wardTerms } }),
       };
     }
 
@@ -227,6 +236,29 @@ export class ListingsService {
       data: mappedData,
       meta: { page: Number(page), limit: Number(limit), total },
     };
+  }
+
+  private locationTerms(value?: string) {
+    const trimmed = value?.trim();
+    if (!trimmed) return [];
+
+    const terms = new Set<string>([trimmed]);
+    const withoutPrefix = trimmed.replace(
+      /^(Thành phố|Tỉnh|TP\.|Phường|Xã|Thị trấn)\s+/i,
+      '',
+    );
+    if (withoutPrefix && withoutPrefix !== trimmed) {
+      terms.add(withoutPrefix);
+    }
+    if (withoutPrefix === 'Hồ Chí Minh') {
+      terms.add('TP. Hồ Chí Minh');
+      terms.add('Thành phố Hồ Chí Minh');
+    }
+    if (withoutPrefix === 'Hà Nội') {
+      terms.add('Thành phố Hà Nội');
+    }
+
+    return [...terms];
   }
 
   async findOne(id: string) {
@@ -384,77 +416,77 @@ export class ListingsService {
     lat: number,
     lng: number,
     radiusKm: number = 5,
-    limit: number = 10,
+    limit: number = 30,
+    filters: Pick<QueryListingDto, 'province' | 'city' | 'district' | 'ward'> = {},
   ) {
-    // Haversine formula — must JOIN Address since coordinates live there now
-    // We also join Review to get real counts and ratings
-    const listings = await this.prisma.$queryRaw<any[]>`
-      SELECT
-        l.*,
-        a.street, a.ward, a.district, a.city, a.province, a.lat, a.lng,
-        u.name as "ownerName", u."avatarUrl" as "ownerAvatar",
-        COALESCE(r.count, 0) as "reviewCount",
-        COALESCE(r.avg, 0) as "avgRating",
-        (2 * 6371 * atan2(
-          sqrt(
-            pow(sin(radians(a.lat - ${lat}) / 2), 2) +
-            cos(radians(${lat})) * cos(radians(a.lat)) *
-            pow(sin(radians(a.lng - ${lng}) / 2), 2)
-          ),
-          sqrt(
-            1 - (
-              pow(sin(radians(a.lat - ${lat}) / 2), 2) +
-              cos(radians(${lat})) * cos(radians(a.lat)) *
-              pow(sin(radians(a.lng - ${lng}) / 2), 2)
-            )
-          )
-        )) AS distance
-      FROM "Listing" l
-      JOIN "Address" a ON a.id = l."addressId"
-      JOIN "User" u ON u.id = l."ownerId"
-      LEFT JOIN (
-        SELECT "listingId", COUNT(*)::int as count, AVG(rating)::float as avg
-        FROM "Review"
-        GROUP BY "listingId"
-      ) r ON r."listingId" = l.id
-      WHERE l.status = 'ACTIVE'
-        AND (2 * 6371 * atan2(
-          sqrt(
-            pow(sin(radians(a.lat - ${lat}) / 2), 2) +
-            cos(radians(${lat})) * cos(radians(a.lat)) *
-            pow(sin(radians(a.lng - ${lng}) / 2), 2)
-          ),
-          sqrt(
-            1 - (
-              pow(sin(radians(a.lat - ${lat}) / 2), 2) +
-              cos(radians(${lat})) * cos(radians(a.lat)) *
-              pow(sin(radians(a.lng - ${lng}) / 2), 2)
-            )
-          )
-        )) <= ${radiusKm}
-      ORDER BY distance
-      LIMIT ${limit}
-    `;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException('Invalid coordinates');
+    }
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) {
+      throw new BadRequestException('Radius must be greater than 0');
+    }
 
-    return listings.map((l) => ({
-      ...l,
+    const provinceTerms = this.locationTerms(filters.province);
+    const wardTerms = this.locationTerms(filters.ward);
+    const where: Prisma.ListingWhereInput = {
+      status: 'ACTIVE',
       address: {
-        street: l.street,
-        ward: l.ward,
-        district: l.district,
-        city: l.city,
-        province: l.province,
-        lat: l.lat,
-        lng: l.lng,
+        ...(provinceTerms.length > 0 && { province: { in: provinceTerms } }),
+        ...(filters.city && { city: filters.city }),
+        ...(filters.district && { district: filters.district }),
+        ...(wardTerms.length > 0 && { ward: { in: wardTerms } }),
       },
-      owner: {
-        id: l.ownerId,
-        name: l.ownerName,
-        avatarUrl: l.ownerAvatar,
-      },
-      reviewCount: l.reviewCount ?? 0,
-      avgRating: l.avgRating ?? 0,
+    };
+
+    const candidates = await this.prisma.listing.findMany({
+      where,
+      include: listingSummaryInclude,
+    });
+
+    const nearby = candidates
+      .map((listing) => ({
+        listing,
+        distance: this.distanceKm(
+          lat,
+          lng,
+          listing.address.lat,
+          listing.address.lng,
+        ),
+      }))
+      .filter(({ distance }) => distance <= radiusKm)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limit);
+
+    const mappedListings = await this.mapListingsWithRatings(
+      nearby.map(({ listing }) => listing),
+    );
+    const distanceByListingId = new Map(
+      nearby.map(({ listing, distance }) => [listing.id, distance]),
+    );
+
+    return mappedListings.map((listing) => ({
+      ...listing,
+      distance: distanceByListingId.get(listing.id) ?? 0,
     }));
+  }
+
+  private distanceKm(
+    fromLat: number,
+    fromLng: number,
+    toLat: number,
+    toLng: number,
+  ) {
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(toLat - fromLat);
+    const dLng = toRadians(toLng - fromLng);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRadians(fromLat)) *
+        Math.cos(toRadians(toLat)) *
+        Math.sin(dLng / 2) ** 2;
+
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   async searchByAddress(address: string, radiusKm: number = 5) {
