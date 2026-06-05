@@ -77,7 +77,7 @@ export interface ListingSearchFilters {
   maxPrice?: number;
   minArea?: number;
   maxArea?: number;
-  utilities?: string[];
+  utilities?: Array<string | string[]>;
   province?: string | string[];
   ward?: string | string[];
   district?: string;
@@ -377,7 +377,11 @@ export class OpensearchService implements OnModuleInit {
     }
     if (filters.utilities && filters.utilities.length > 0) {
       filters.utilities.forEach((utility) => {
-        filter.push({ term: { utilities: utility } });
+        filter.push(
+          Array.isArray(utility)
+            ? { terms: { utilities: utility } }
+            : { term: { utilities: utility } },
+        );
       });
     }
     if (

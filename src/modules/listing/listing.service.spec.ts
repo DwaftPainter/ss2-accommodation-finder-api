@@ -329,11 +329,11 @@ describe('ListingsService', () => {
       );
     });
 
-    it('should filter by utilities', async () => {
+    it('should require every selected utility with stored-name aliases', async () => {
       prismaMock.listing.findMany.mockResolvedValue([]);
       prismaMock.listing.count.mockResolvedValue(0);
 
-      await service.findAll({ utilities: 'wifi,parking' });
+      await service.findAll({ utilities: 'wifi,air_conditioning' });
 
       expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -341,7 +341,12 @@ describe('ListingsService', () => {
             AND: expect.arrayContaining([
               {
                 utilities: {
-                  hasSome: ['wifi', 'parking'],
+                  hasSome: ['wifi', 'WiFi'],
+                },
+              },
+              {
+                utilities: {
+                  hasSome: ['air_conditioning', 'Air Conditioning'],
                 },
               },
             ]),

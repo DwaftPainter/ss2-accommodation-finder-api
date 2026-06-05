@@ -129,12 +129,14 @@ export class ListingsController {
     @Query('city') city?: string,
     @Query('district') district?: string,
     @Query('ward') ward?: string,
+    @Query('utilities') utilities?: string,
   ) {
     return this.service.findNearby(lat, lng, radius ?? 5, 30, {
       province,
       city,
       district,
       ward,
+      utilities,
     });
   }
 
