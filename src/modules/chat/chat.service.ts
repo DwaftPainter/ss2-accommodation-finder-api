@@ -100,6 +100,15 @@ export class ChatService {
       throw new ForbiddenException('Access denied');
     }
 
+    await this.prisma.message.updateMany({
+      where: {
+        chatId,
+        senderId: { not: userId },
+        isRead: false,
+      },
+      data: { isRead: true, readAt: new Date() },
+    });
+
     const [messages, total] = await Promise.all([
       this.prisma.message.findMany({
         where: { chatId },
@@ -112,16 +121,6 @@ export class ChatService {
       }),
       this.prisma.message.count({ where: { chatId } }),
     ]);
-
-    // Mark messages as read if they were sent by the other user
-    await this.prisma.message.updateMany({
-      where: {
-        chatId,
-        senderId: { not: userId },
-        isRead: false,
-      },
-      data: { isRead: true, readAt: new Date() },
-    });
 
     return {
       messages,

@@ -99,6 +99,7 @@ export class ListingsService {
     } = query;
     const provinceTerms = this.locationTerms(province);
     const wardTerms = this.locationTerms(ward);
+    const utilityTermGroups = this.utilityTermGroups(utilities);
 
     // Try OpenSearch first if there's a search term
     if (search) {
@@ -115,10 +116,7 @@ export class ListingsService {
               maxPrice: maxPrice ? Number(maxPrice) : undefined,
               minArea: minArea ? Number(minArea) : undefined,
               maxArea: maxArea ? Number(maxArea) : undefined,
-              utilities:
-                typeof utilities === 'string'
-                  ? utilities.split(',')
-                  : utilities,
+              utilities: utilityTermGroups.length > 0 ? utilityTermGroups : undefined,
               status: 'ACTIVE',
             },
             Number(page),
@@ -209,11 +207,9 @@ export class ListingsService {
       andConditions.push({ area: { lte: Number(maxArea) } });
     }
 
-    if (utilities) {
-      const utilityList =
-        typeof utilities === 'string' ? utilities.split(',') : utilities;
-      andConditions.push({ utilities: { hasSome: utilityList } });
-    }
+    utilityTermGroups.forEach((utilityTerms) => {
+      andConditions.push({ utilities: { hasSome: utilityTerms } });
+    });
 
     if (andConditions.length > 0) {
       where.AND = andConditions;
@@ -236,6 +232,32 @@ export class ListingsService {
       data: mappedData,
       meta: { page: Number(page), limit: Number(limit), total },
     };
+  }
+
+  private utilityTermGroups(utilities?: string | string[]) {
+    const values = Array.isArray(utilities)
+      ? utilities
+      : (utilities ?? '').split(',');
+
+    return values
+      .map((utility) => utility.trim())
+      .filter(Boolean)
+      .map((utility) => this.utilityTerms(utility));
+  }
+
+  private utilityTerms(value: string) {
+    const aliases: Record<string, string[]> = {
+      wifi: ['wifi', 'WiFi'],
+      air_conditioning: ['air_conditioning', 'Air Conditioning'],
+      balcony: ['balcony', 'Balcony'],
+      washing_machine: ['washing_machine', 'Washing Machine'],
+      parking: ['parking', 'Parking'],
+      elevator: ['elevator', 'Elevator'],
+      security: ['security', 'Security'],
+      flexible_hours: ['flexible_hours', 'Flexible Hours'],
+    };
+
+    return aliases[value] ?? [value];
   }
 
   private locationTerms(value?: string) {
@@ -417,7 +439,10 @@ export class ListingsService {
     lng: number,
     radiusKm: number = 5,
     limit: number = 30,
-    filters: Pick<QueryListingDto, 'province' | 'city' | 'district' | 'ward'> = {},
+    filters: Pick<
+      QueryListingDto,
+      'province' | 'city' | 'district' | 'ward' | 'utilities'
+    > = {},
   ) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new BadRequestException('Invalid coordinates');
@@ -428,6 +453,7 @@ export class ListingsService {
 
     const provinceTerms = this.locationTerms(filters.province);
     const wardTerms = this.locationTerms(filters.ward);
+    const utilityTermGroups = this.utilityTermGroups(filters.utilities);
     const where: Prisma.ListingWhereInput = {
       status: 'ACTIVE',
       address: {
@@ -436,6 +462,11 @@ export class ListingsService {
         ...(filters.district && { district: filters.district }),
         ...(wardTerms.length > 0 && { ward: { in: wardTerms } }),
       },
+      ...(utilityTermGroups.length > 0 && {
+        AND: utilityTermGroups.map((utilityTerms) => ({
+          utilities: { hasSome: utilityTerms },
+        })),
+      }),
     };
 
     const candidates = await this.prisma.listing.findMany({
