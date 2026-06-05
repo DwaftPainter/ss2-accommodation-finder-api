@@ -78,6 +78,8 @@ export interface ListingSearchFilters {
   minArea?: number;
   maxArea?: number;
   utilities?: string[];
+  province?: string | string[];
+  ward?: string | string[];
   district?: string;
   city?: string;
   status?: string;
@@ -316,7 +318,15 @@ export class OpensearchService implements OnModuleInit {
       must.push({
         multi_match: {
           query,
-          fields: ['title^3', 'description', 'address.street', 'address.district'],
+          fields: [
+            'title^3',
+            'description',
+            'address.street',
+            'address.ward',
+            'address.district',
+            'address.city',
+            'address.province',
+          ],
           type: 'best_fields',
           fuzziness: 'AUTO',
         },
@@ -329,11 +339,29 @@ export class OpensearchService implements OnModuleInit {
     if (filters.status) {
       filter.push({ term: { status: filters.status } });
     }
+    if (filters.province) {
+      filter.push({
+        terms: {
+          'address.province': Array.isArray(filters.province)
+            ? filters.province
+            : [filters.province],
+        },
+      });
+    }
     if (filters.city) {
       filter.push({ term: { 'address.city': filters.city } });
     }
     if (filters.district) {
       filter.push({ term: { 'address.district': filters.district } });
+    }
+    if (filters.ward) {
+      filter.push({
+        terms: {
+          'address.ward': Array.isArray(filters.ward)
+            ? filters.ward
+            : [filters.ward],
+        },
+      });
     }
     if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
       const range: any = {};

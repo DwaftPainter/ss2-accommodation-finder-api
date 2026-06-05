@@ -15,6 +15,14 @@ export class QueryListingDto {
 
   @IsOptional()
   @IsString()
+  province?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
   district?: string;
 
   @IsOptional()
