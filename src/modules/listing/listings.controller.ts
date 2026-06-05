@@ -125,8 +125,17 @@ export class ListingsController {
     @Query('lat', ParseFloatPipe) lat: number,
     @Query('lng', ParseFloatPipe) lng: number,
     @Query('radius', new ParseIntPipe({ optional: true })) radius?: number,
+    @Query('province') province?: string,
+    @Query('city') city?: string,
+    @Query('district') district?: string,
+    @Query('ward') ward?: string,
   ) {
-    return this.service.findNearby(lat, lng, radius ?? 5);
+    return this.service.findNearby(lat, lng, radius ?? 5, 30, {
+      province,
+      city,
+      district,
+      ward,
+    });
   }
 
   @Get('search/by-address')

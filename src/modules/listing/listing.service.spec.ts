@@ -266,6 +266,69 @@ describe('ListingsService', () => {
       );
     });
 
+    it('should filter by province with administrative name variants', async () => {
+      prismaMock.listing.findMany.mockResolvedValue([]);
+      prismaMock.listing.count.mockResolvedValue(0);
+
+      await service.findAll({ province: 'Thành phố Hà Nội' });
+
+      expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            address: expect.objectContaining({
+              province: { in: ['Thành phố Hà Nội', 'Hà Nội'] },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should filter by ward with full and prefix-stripped variants', async () => {
+      prismaMock.listing.findMany.mockResolvedValue([]);
+      prismaMock.listing.count.mockResolvedValue(0);
+
+      await service.findAll({ ward: 'Phường Bến Thành' });
+
+      expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            address: expect.objectContaining({
+              ward: { in: ['Phường Bến Thành', 'Bến Thành'] },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should pass province and ward filters to OpenSearch when searching', async () => {
+      mockOpensearchService.searchListings.mockResolvedValue({
+        listings: [],
+        total: 0,
+      });
+      prismaMock.listing.findMany.mockResolvedValue([]);
+      prismaMock.listing.count.mockResolvedValue(0);
+
+      await service.findAll({
+        search: 'studio',
+        province: 'Hồ Chí Minh',
+        ward: 'Phường Bến Thành',
+      });
+
+      expect(mockOpensearchService.searchListings).toHaveBeenCalledWith(
+        'studio',
+        expect.objectContaining({
+          province: [
+            'Hồ Chí Minh',
+            'TP. Hồ Chí Minh',
+            'Thành phố Hồ Chí Minh',
+          ],
+          ward: ['Phường Bến Thành', 'Bến Thành'],
+        }),
+        1,
+        10,
+      );
+    });
+
     it('should filter by utilities', async () => {
       prismaMock.listing.findMany.mockResolvedValue([]);
       prismaMock.listing.count.mockResolvedValue(0);
@@ -526,50 +589,97 @@ describe('ListingsService', () => {
   });
 
   describe('findNearby', () => {
+    const nearbyListings = [
+      {
+        id: 'hanoi-1',
+        title: 'Room in Hanoi',
+        address: {
+          street: 'Street 1',
+          ward: 'Dịch Vọng',
+          district: 'Cầu Giấy',
+          city: 'Hà Nội',
+          province: 'Hà Nội',
+          lat: 21.0333,
+          lng: 105.7968,
+        },
+        owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+      },
+      {
+        id: 'hcm-1',
+        title: 'Room in HCMC',
+        address: {
+          street: 'Street 2',
+          ward: 'Bến Thành',
+          district: 'Quận 1',
+          city: 'TP. Hồ Chí Minh',
+          province: 'TP. Hồ Chí Minh',
+          lat: 10.7769,
+          lng: 106.7009,
+        },
+        owner: { id: 'user2', name: 'Owner 2', avatarUrl: null },
+      },
+    ];
+
     it('should find listings near coordinates', async () => {
-      const mockListings = [
-        { id: '1', title: 'Room 1', lat: 10.762, lng: 106.66, distance: 0.1 },
-        { id: '2', title: 'Room 2', lat: 10.763, lng: 106.661, distance: 0.5 },
-      ];
-      prismaMock.$queryRaw.mockResolvedValue(mockListings);
+      prismaMock.listing.findMany.mockResolvedValue(nearbyListings);
 
-      const result = await service.findNearby(10.762622, 106.660172, 5, 10);
+      const result = await service.findNearby(10.7769, 106.7009, 5, 10);
 
-      expect(prismaMock.$queryRaw).toHaveBeenCalled();
-      expect(result).toEqual(
-        mockListings.map((l) => ({
-          ...l,
-          address: {
-            street: undefined,
-            ward: undefined,
-            district: undefined,
-            city: undefined,
-            province: undefined,
-            lat: l.lat,
-            lng: l.lng,
-          },
+      expect(prismaMock.listing.findMany).toHaveBeenCalledWith({
+        where: { status: 'ACTIVE', address: {} },
+        include: {
+          address: true,
           owner: {
-            id: undefined,
-            name: undefined,
-            avatarUrl: undefined,
+            select: { id: true, name: true, avatarUrl: true },
           },
+        },
+      });
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'hcm-1',
+          distance: 0,
           reviewCount: 0,
           avgRating: 0,
-        })),
+        }),
+      ]);
+    });
+
+    it('should sort nearby listings by the requested coordinates', async () => {
+      prismaMock.listing.findMany.mockResolvedValue(nearbyListings);
+
+      const hcmResults = await service.findNearby(10.7769, 106.7009, 2000, 10);
+      const hanoiResults = await service.findNearby(21.0333, 105.7968, 2000, 10);
+
+      expect(hcmResults[0].id).toBe('hcm-1');
+      expect(hanoiResults[0].id).toBe('hanoi-1');
+    });
+
+    it('should apply province filter before distance limiting', async () => {
+      prismaMock.listing.findMany.mockResolvedValue([nearbyListings[1]]);
+
+      await service.findNearby(10.7769, 106.7009, 5, 10, {
+        province: 'Hồ Chí Minh',
+      });
+
+      expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            address: expect.objectContaining({
+              province: {
+                in: [
+                  'Hồ Chí Minh',
+                  'TP. Hồ Chí Minh',
+                  'Thành phố Hồ Chí Minh',
+                ],
+              },
+            }),
+          }),
+        }),
       );
     });
 
-    it('should use default radius and limit', async () => {
-      prismaMock.$queryRaw.mockResolvedValue([]);
-
-      await service.findNearby(10.762622, 106.660172);
-
-      // Verify that queryRaw was called with the raw query containing defaults
-      expect(prismaMock.$queryRaw).toHaveBeenCalled();
-    });
-
     it('should handle empty results', async () => {
-      prismaMock.$queryRaw.mockResolvedValue([]);
+      prismaMock.listing.findMany.mockResolvedValue([]);
 
       const result = await service.findNearby(10.0, 106.0, 1, 10);
 
@@ -587,38 +697,38 @@ describe('ListingsService', () => {
         raw: {},
       };
       const mockListings = [
-        { id: '1', title: 'Room in District 1', distance: 0.5 },
+        {
+          id: '1',
+          title: 'Room in District 1',
+          address: {
+            street: 'Street',
+            ward: 'Bến Thành',
+            district: 'Quận 1',
+            city: 'TP. Hồ Chí Minh',
+            province: 'TP. Hồ Chí Minh',
+            lat: 10.762622,
+            lng: 106.660172,
+          },
+          owner: { id: 'user1', name: 'Owner', avatarUrl: null },
+        },
       ];
 
       mapService.geocode.mockResolvedValue(mockGeocodeResult);
-      prismaMock.$queryRaw.mockResolvedValue(mockListings);
+      prismaMock.listing.findMany.mockResolvedValue(mockListings);
 
       const result = await service.searchByAddress('District 1', 5);
 
       expect(mapService.geocode).toHaveBeenCalledWith({
         address: 'District 1',
       });
-      expect(prismaMock.$queryRaw).toHaveBeenCalled();
+      expect(prismaMock.listing.findMany).toHaveBeenCalled();
       expect(result).toEqual({
         location: mockGeocodeResult,
-        listings: mockListings.map((l) => ({
-          ...l,
-          address: {
-            street: undefined,
-            ward: undefined,
-            district: undefined,
-            city: undefined,
-            province: undefined,
-            lat: undefined,
-            lng: undefined,
-          },
-          owner: {
-            id: undefined,
-            name: undefined,
-            avatarUrl: undefined,
-          },
+        listings: mockListings.map((listing) => ({
+          ...listing,
           reviewCount: 0,
           avgRating: 0,
+          distance: 0,
         })),
       });
     });
@@ -631,11 +741,15 @@ describe('ListingsService', () => {
         displayName: 'Test',
         raw: {},
       });
-      prismaMock.$queryRaw.mockResolvedValue([]);
+      prismaMock.listing.findMany.mockResolvedValue([]);
 
       await service.searchByAddress('Test Address');
 
-      expect(prismaMock.$queryRaw).toHaveBeenCalled();
+      expect(prismaMock.listing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: 'ACTIVE', address: {} },
+        }),
+      );
     });
 
     it('should throw NotFoundException when address not found', async () => {
