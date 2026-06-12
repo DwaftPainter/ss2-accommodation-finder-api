@@ -7,9 +7,6 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenService } from './token.service';
@@ -23,15 +20,8 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { AUTH_CODES, authResponse } from './auth.messages';
-
-interface Auth0UserInfo {
-  sub: string;
-  email: string;
-  name?: string;
-  picture?: string;
-  email_verified?: boolean;
-}
 
 @Injectable()
 export class AuthService {
@@ -43,19 +33,8 @@ export class AuthService {
     private tokenService: TokenService,
     private otpService: OtpService,
     private mailService: MailService,
-    private httpService: HttpService,
     private opensearch: OpensearchService,
-    private configService: ConfigService,
   ) {}
-
-  private configAuth0Domain() {
-    return (
-      this.configService.get<string>('auth0.domain') ||
-      process.env.AUTH0_DOMAIN ||
-      process.env.VITE_AUTH0_DOMAIN ||
-      undefined
-    )?.replace(/^https?:\/\//, '');
-  }
 
   async register(data: RegisterDto) {
     try {
@@ -420,43 +399,34 @@ export class AuthService {
     }
   }
 
-  async googleLogin(auth0Token: string) {
+  async googleLogin(auth0User: GoogleLoginDto) {
     try {
-      const auth0Domain =
-        this.configAuth0Domain() ||
-        (() => {
-          throw new BadRequestException('AUTH0_DOMAIN is not configured');
-        })();
-
-      let auth0User: Auth0UserInfo;
-      try {
-        const response = await firstValueFrom(
-          this.httpService.get<Auth0UserInfo>(
-            `https://${auth0Domain}/userinfo`,
-            { headers: { Authorization: `Bearer ${auth0Token}` } },
-          ),
-        );
-        auth0User = response.data;
-      } catch (e) {
-        this.logger.error(
-          '[AuthService.googleLogin] Failed to fetch Auth0 user info:',
-          e,
-        );
-        throw new UnauthorizedException(
-          authResponse(AUTH_CODES.AUTH0_TOKEN_INVALID),
-        );
-      }
-
       if (!auth0User.email) {
         throw new UnauthorizedException(
           authResponse(AUTH_CODES.AUTH0_EMAIL_MISSING),
         );
       }
 
+      if (!auth0User.sub) {
+        throw new UnauthorizedException(
+          authResponse(AUTH_CODES.AUTH0_TOKEN_INVALID),
+        );
+      }
+
+      const displayName =
+        auth0User.name ||
+        [auth0User.given_name, auth0User.family_name]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        auth0User.nickname ||
+        auth0User.email.split('@')[0];
+
       let user: {
         id: string;
         email: string;
         name: string;
+        avatarUrl: string | null;
         auth0Id: string | null;
         emailVerified: boolean;
         createdAt: Date;
@@ -471,6 +441,7 @@ export class AuthService {
             id: true,
             email: true,
             name: true,
+            avatarUrl: true,
             auth0Id: true,
             emailVerified: true,
             createdAt: true,
@@ -493,12 +464,14 @@ export class AuthService {
               where: { id: user.id },
               data: {
                 auth0Id: auth0User.sub,
+                avatarUrl: auth0User.picture,
                 emailVerified: auth0User.email_verified ?? true,
               },
               select: {
                 id: true,
                 email: true,
                 name: true,
+                avatarUrl: true,
                 auth0Id: true,
                 emailVerified: true,
                 createdAt: true,
@@ -521,7 +494,7 @@ export class AuthService {
           user = await this.prisma.user.create({
             data: {
               email: auth0User.email,
-              name: auth0User.name || auth0User.email.split('@')[0],
+              name: displayName,
               avatarUrl: auth0User.picture,
               auth0Id: auth0User.sub,
               emailVerified: auth0User.email_verified ?? true,
@@ -530,6 +503,7 @@ export class AuthService {
               id: true,
               email: true,
               name: true,
+              avatarUrl: true,
               auth0Id: true,
               emailVerified: true,
               createdAt: true,
@@ -559,6 +533,7 @@ export class AuthService {
             id: user.id,
             email: user.email,
             name: user.name,
+            avatarUrl: user.avatarUrl,
           },
           ...tokens,
           ...authResponse(AUTH_CODES.GOOGLE_LOGIN_SUCCESS),
