@@ -3,6 +3,10 @@ import { IsBoolean, IsOptional, IsString } from 'class-validator';
 export class GoogleLoginDto {
   @IsOptional()
   @IsString()
+  token?: string;
+
+  @IsOptional()
+  @IsString()
   sub?: string;
 
   @IsOptional()
