@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Logger } from '@nestjs/common';
+import { Logger, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import {
@@ -20,7 +20,11 @@ async function bootstrap() {
   configureCors(app, config);
 
   app.setGlobalPrefix('api', {
-    exclude: ['api/docs'],
+    exclude: [
+      { path: '', method: RequestMethod.GET },
+      { path: 'favicon.ico', method: RequestMethod.GET },
+      'api/docs',
+    ],
   });
 
   app.useGlobalFilters(new HttpExceptionFilter());
